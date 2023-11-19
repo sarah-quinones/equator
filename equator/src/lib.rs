@@ -413,9 +413,20 @@ where
             debug: &self.debug.rhs,
         };
 
-        lhs.fmt(f)?;
-        f.write_str("\n")?;
-        rhs.fmt(f)
+        let lhs_eval = lhs.result.eval();
+        let rhs_eval = rhs.result.eval();
+        if !(lhs_eval && rhs_eval) {
+            if !lhs_eval {
+                lhs.fmt(f)?;
+                if !rhs_eval {
+                    f.write_str("\n")?;
+                }
+            }
+            if !rhs_eval {
+                rhs.fmt(f)?;
+            }
+        }
+        Ok(())
     }
 }
 
