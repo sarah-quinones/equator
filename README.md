@@ -9,6 +9,8 @@ Valid assertions must be of the form:
  - `all(...)` for testing that multiple conditions all hold simultaneously,
  - `any(...)` for testing that at least one condition holds.
 
+`all` and `any` may be arbitrarily nested.
+
 # Example
 ```
 let x = 0;
