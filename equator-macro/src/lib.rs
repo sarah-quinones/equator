@@ -15,7 +15,7 @@ use syn::*;
 //                     lhs: __0,
 //                     rhs: __1,
 //                 },
-//                 rhs: __2,
+//                 rhs: *__2,
 //             },
 //             line: (),
 //             col: (),
@@ -44,7 +44,7 @@ use syn::*;
 //                             lhs: __0 as *const _ as *const (),
 //                             rhs: __1 as *const _ as *const (),
 //                         },
-//                         rhs: __2,
+//                         rhs: *__2,
 //                     },
 //                     line: (),
 //                     col: (),
@@ -109,8 +109,8 @@ impl AssertExpr {
             ) => Code {
                 assert_expr: quote! {
                     ::equator::atomic::EqExpr {
-                        lhs: (#left_placeholder_id),
-                        rhs: (#right_placeholder_id),
+                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
@@ -138,8 +138,8 @@ impl AssertExpr {
             ) => Code {
                 assert_expr: quote! {
                     ::equator::atomic::NeExpr {
-                        lhs: (#left_placeholder_id),
-                        rhs: (#right_placeholder_id),
+                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
@@ -167,8 +167,8 @@ impl AssertExpr {
             ) => Code {
                 assert_expr: quote! {
                     ::equator::atomic::LtExpr {
-                        lhs: (#left_placeholder_id),
-                        rhs: (#right_placeholder_id),
+                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
@@ -196,8 +196,8 @@ impl AssertExpr {
             ) => Code {
                 assert_expr: quote! {
                     ::equator::atomic::LeExpr {
-                        lhs: (#left_placeholder_id),
-                        rhs: (#right_placeholder_id),
+                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
@@ -225,8 +225,8 @@ impl AssertExpr {
             ) => Code {
                 assert_expr: quote! {
                     ::equator::atomic::GtExpr {
-                        lhs: (#left_placeholder_id),
-                        rhs: (#right_placeholder_id),
+                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
@@ -254,8 +254,8 @@ impl AssertExpr {
             ) => Code {
                 assert_expr: quote! {
                     ::equator::atomic::GeExpr {
-                        lhs: (#left_placeholder_id),
-                        rhs: (#right_placeholder_id),
+                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
@@ -605,6 +605,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         match (#(&#atomics,)*) {
             (#(#placeholders,)*) => {
                 use ::equator::Expr;
+                use ::equator::TryDebugWrap;
 
                 let __assert_expr = ::equator::Finalize {
                     expr: #assert_expr,

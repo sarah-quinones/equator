@@ -61,6 +61,124 @@ pub mod atomic {
 }
 
 #[doc(hidden)]
+#[repr(transparent)]
+pub struct DebugWrapper<T>(T);
+#[doc(hidden)]
+#[repr(transparent)]
+pub struct NoDebugWrapper<T>(T);
+
+impl<Lhs: PartialEq<Rhs>, Rhs> PartialEq<DebugWrapper<Rhs>> for DebugWrapper<Lhs> {
+    #[inline(always)]
+    fn eq(&self, other: &DebugWrapper<Rhs>) -> bool {
+        self.0 == other.0
+    }
+}
+impl<Lhs: PartialEq<Rhs>, Rhs> PartialEq<DebugWrapper<Rhs>> for NoDebugWrapper<Lhs> {
+    #[inline(always)]
+    fn eq(&self, other: &DebugWrapper<Rhs>) -> bool {
+        self.0 == other.0
+    }
+}
+impl<Lhs: PartialEq<Rhs>, Rhs> PartialEq<NoDebugWrapper<Rhs>> for DebugWrapper<Lhs> {
+    #[inline(always)]
+    fn eq(&self, other: &NoDebugWrapper<Rhs>) -> bool {
+        self.0 == other.0
+    }
+}
+impl<Lhs: PartialEq<Rhs>, Rhs> PartialEq<NoDebugWrapper<Rhs>> for NoDebugWrapper<Lhs> {
+    #[inline(always)]
+    fn eq(&self, other: &NoDebugWrapper<Rhs>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<Lhs: PartialOrd<Rhs>, Rhs> PartialOrd<DebugWrapper<Rhs>> for DebugWrapper<Lhs> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &DebugWrapper<Rhs>) -> Option<core::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl<Lhs: PartialOrd<Rhs>, Rhs> PartialOrd<DebugWrapper<Rhs>> for NoDebugWrapper<Lhs> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &DebugWrapper<Rhs>) -> Option<core::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl<Lhs: PartialOrd<Rhs>, Rhs> PartialOrd<NoDebugWrapper<Rhs>> for DebugWrapper<Lhs> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &NoDebugWrapper<Rhs>) -> Option<core::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl<Lhs: PartialOrd<Rhs>, Rhs> PartialOrd<NoDebugWrapper<Rhs>> for NoDebugWrapper<Lhs> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &NoDebugWrapper<Rhs>) -> Option<core::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<T: Debug> Debug for DebugWrapper<T> {
+    #[inline(always)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.0.fmt(f)
+    }
+}
+impl<T> Debug for NoDebugWrapper<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(
+            f,
+            "<object of type \"{}\" at address {:?}>",
+            core::any::type_name::<T>(),
+            self as *const _ as *const ()
+        )
+    }
+}
+
+#[doc(hidden)]
+pub struct DebugWrap;
+#[doc(hidden)]
+pub struct NoDebugWrap;
+
+impl DebugWrap {
+    #[inline(always)]
+    pub fn do_wrap<T: Debug>(self, value: &T) -> &DebugWrapper<T> {
+        unsafe { &*(value as *const T as *const _) }
+    }
+}
+impl NoDebugWrap {
+    #[inline(always)]
+    pub fn do_wrap<T>(self, value: &T) -> &NoDebugWrapper<T> {
+        unsafe { &*(value as *const T as *const _) }
+    }
+}
+
+#[doc(hidden)]
+pub struct Wrapper<T>(pub T);
+
+impl<T: Debug> TryDebugWrap for &Wrapper<T> {
+    type Wrap = DebugWrap;
+
+    #[inline]
+    fn wrap(&self) -> Self::Wrap {
+        DebugWrap
+    }
+}
+impl<T> TryDebugWrap for Wrapper<T> {
+    type Wrap = NoDebugWrap;
+
+    #[inline]
+    fn wrap(&self) -> Self::Wrap {
+        NoDebugWrap
+    }
+}
+
+#[doc(hidden)]
+pub trait TryDebugWrap {
+    type Wrap;
+    fn wrap(&self) -> Self::Wrap;
+}
+
+#[doc(hidden)]
 pub mod expr {
     #[derive(Copy, Clone)]
     pub struct AndExpr<Lhs, Rhs> {

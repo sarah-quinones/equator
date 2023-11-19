@@ -2,6 +2,12 @@
 name = "equator-macro"
 version = "0.1.0"
 edition = "2021"
+authors = ["sarah <>"]
+description = "Composable assertion library"
+readme = "../README.md"
+repository = "https://github.com/sarah-ek/equator/"
+license = "MIT"
+keywords = ["assert"]
 
 [lib]
 proc-macro = true
