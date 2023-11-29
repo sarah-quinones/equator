@@ -687,19 +687,6 @@ impl<Lhs: PartialOrd<Rhs>, Rhs> Expr for GeExpr<Lhs, Rhs> {
     }
 }
 
-#[cold]
-#[inline(never)]
-#[doc(hidden)]
-pub fn panic_failed_assert<'a, M: core::fmt::Debug + FromParts<'a>>(
-    __marker: PhantomData<M>,
-    result: M::Result,
-    source: &'a M::Source,
-    vtable: &'a M::VTable,
-    debug: &'a M::Debug,
-) -> ! {
-    panic!("{:#?}", M::from_parts(result, source, vtable, debug))
-}
-
 #[inline(always)]
 #[doc(hidden)]
 pub fn marker<T>(_: &T) -> PhantomData<T> {
@@ -758,6 +745,36 @@ impl<E: Expr> Expr for Finalize<E, (), (), ()> {
 #[doc(hidden)]
 pub const fn vtable_for<T: DynDebug>(_: &T) -> &'static T::VTable {
     T::VTABLE
+}
+
+#[cold]
+#[inline(never)]
+#[doc(hidden)]
+pub fn panic_failed_assert<'a, M: core::fmt::Debug + FromParts<'a>>(
+    __marker: PhantomData<M>,
+    result: M::Result,
+    source: &'a M::Source,
+    vtable: &'a M::VTable,
+    debug: &'a M::Debug,
+) -> ! {
+    panic!("{:#?}", M::from_parts(result, source, vtable, debug))
+}
+
+#[cold]
+#[inline(never)]
+#[doc(hidden)]
+pub fn panic_failed_assert_with_message<'a, M: core::fmt::Debug + FromParts<'a>>(
+    __marker: PhantomData<M>,
+    message: core::fmt::Arguments,
+    result: M::Result,
+    source: &'a M::Source,
+    vtable: &'a M::VTable,
+    debug: &'a M::Debug,
+) -> ! {
+    panic!(
+        "{message}\n{:#?}",
+        M::from_parts(result, source, vtable, debug)
+    )
 }
 
 #[cfg(test)]

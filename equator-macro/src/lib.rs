@@ -579,12 +579,32 @@ fn handle_expr(
 
 #[proc_macro]
 pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let item = item.into();
-    let Ok(body) = parse2::<Expr>(item) else {
+    let item: TokenStream = item.into();
+    let Ok(body) = parse2::<Expr>(quote! { __fn_call(#item) }) else {
         return quote! {
             ::core::compile_error!("invalid expression");
         }
         .into();
+    };
+
+    let (body, args) = match body {
+        Expr::Call(expr) => {
+            let mut args = expr.args.into_iter().collect::<Vec<_>>();
+            if args.is_empty() {
+                return quote! {
+                    ::core::compile_error!("invalid expression");
+                }
+                .into();
+            }
+            let body = args.remove(0);
+            (body, args)
+        }
+        _ => {
+            return quote! {
+                ::core::compile_error!("invalid expression");
+            }
+            .into();
+        }
     };
 
     let mut atomics = Vec::new();
@@ -601,44 +621,90 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         debug,
     } = assert_expr.code();
 
-    let outer_block = quote! {
-        match (#(&#atomics,)*) {
-            (#(#placeholders,)*) => {
-                use ::equator::Expr;
-                use ::equator::TryDebugWrap;
+    let outer_block = if args.is_empty() {
+        quote! {
+            match (#(&#atomics,)*) {
+                (#(#placeholders,)*) => {
+                    use ::equator::Expr;
+                    use ::equator::TryDebugWrap;
 
-                let __assert_expr = ::equator::Finalize {
-                    expr: #assert_expr,
-                    line: (),
-                    col: (),
-                    file: (),
-                };
-
-                if !__assert_expr.eval_expr() {
-                    let __assert_message = ::equator::DebugMessage {
-                        result: __assert_expr.result(),
-                        source: &::equator::Finalize {
-                            expr: #source,
-                            line: ::core::line!(),
-                            col: ::core::column!(),
-                            file: ::core::file!(),
-                        },
-                        vtable: ::equator::vtable_for(&__assert_expr),
-                        debug: &::equator::Finalize {
-                            expr: #debug,
-                            line: (),
-                            col: (),
-                            file: (),
-                        },
+                    let __assert_expr = ::equator::Finalize {
+                        expr: #assert_expr,
+                        line: (),
+                        col: (),
+                        file: (),
                     };
-                    let __marker = ::equator::marker(&__assert_message);
-                    ::equator::panic_failed_assert(
-                        __marker,
-                        __assert_message.result,
-                        __assert_message.source,
-                        __assert_message.vtable,
-                        __assert_message.debug,
-                    );
+
+                    if !__assert_expr.eval_expr() {
+                        let __assert_message = ::equator::DebugMessage {
+                            result: __assert_expr.result(),
+                            source: &::equator::Finalize {
+                                expr: #source,
+                                line: ::core::line!(),
+                                col: ::core::column!(),
+                                file: ::core::file!(),
+                            },
+                            vtable: ::equator::vtable_for(&__assert_expr),
+                            debug: &::equator::Finalize {
+                                expr: #debug,
+                                line: (),
+                                col: (),
+                                file: (),
+                            },
+                        };
+                        let __marker = ::equator::marker(&__assert_message);
+                        ::equator::panic_failed_assert(
+                            __marker,
+                            __assert_message.result,
+                            __assert_message.source,
+                            __assert_message.vtable,
+                            __assert_message.debug,
+                            );
+                    }
+                }
+            }
+        }
+    } else {
+        quote! {
+            match (#(&#atomics,)* ::core::format_args!(#(#args,)*)) {
+                (#(#placeholders,)* __message) => {
+                    use ::equator::Expr;
+                    use ::equator::TryDebugWrap;
+
+                    let __assert_expr = ::equator::Finalize {
+                        expr: #assert_expr,
+                        line: (),
+                        col: (),
+                        file: (),
+                    };
+
+                    if !__assert_expr.eval_expr() {
+                        let __assert_message = ::equator::DebugMessage {
+                            result: __assert_expr.result(),
+                            source: &::equator::Finalize {
+                                expr: #source,
+                                line: ::core::line!(),
+                                col: ::core::column!(),
+                                file: ::core::file!(),
+                            },
+                            vtable: ::equator::vtable_for(&__assert_expr),
+                            debug: &::equator::Finalize {
+                                expr: #debug,
+                                line: (),
+                                col: (),
+                                file: (),
+                            },
+                        };
+                        let __marker = ::equator::marker(&__assert_message);
+                        ::equator::panic_failed_assert_with_message(
+                            __marker,
+                            __message,
+                            __assert_message.result,
+                            __assert_message.source,
+                            __assert_message.vtable,
+                            __assert_message.debug,
+                        );
+                    }
                 }
             }
         }

@@ -2,9 +2,8 @@ use core::hint::black_box;
 
 #[inline(never)]
 #[track_caller]
-pub fn test_asm_1(a: usize, b: usize) -> usize {
-    equator::assert!(a == b);
-    a * b
+pub fn test_asm_1(a: usize, b: usize) {
+    equator::assert!(a == b, "failed with first = {} and second = {b}", a);
 }
 
 #[inline(never)]
@@ -15,9 +14,8 @@ pub fn test_asm_2(a: usize, b: usize, c: usize, d: usize) {
 
 #[inline(never)]
 #[track_caller]
-pub fn test_std_asm_1(a: usize, b: usize) -> usize {
+pub fn test_std_asm_1(a: usize, b: usize) {
     assert_eq!(a, b);
-    a * b
 }
 
 #[inline(never)]
@@ -25,6 +23,19 @@ pub fn test_std_asm_1(a: usize, b: usize) -> usize {
 pub fn test_std_asm_2(a: usize, b: usize, c: usize, d: usize) {
     assert_eq!(a, b);
     assert_eq!(c, d);
+}
+
+#[inline(never)]
+#[track_caller]
+pub fn test_assert2_asm_1(a: usize, b: usize) {
+    assert2::assert!(a == b);
+}
+
+#[inline(never)]
+#[track_caller]
+pub fn test_assert2_asm_2(a: usize, b: usize, c: usize, d: usize) {
+    assert2::assert!(a == b);
+    assert2::assert!(c == d);
 }
 
 #[test]
@@ -63,6 +74,13 @@ pub fn test_asm() {
     ));
     black_box(test_std_asm_1(black_box(2), black_box(4)));
     black_box(test_std_asm_2(
+        black_box(3),
+        black_box(5),
+        black_box(6),
+        black_box(7),
+    ));
+    black_box(test_assert2_asm_1(black_box(2), black_box(4)));
+    black_box(test_assert2_asm_2(
         black_box(3),
         black_box(5),
         black_box(6),
