@@ -7,11 +7,11 @@ use syn::*;
 //
 // match (&(a), &(0), &(b)) {
 //     (__0, __1, __2) => {
-//         use ::equator::Expr;
+//         use $crate::Expr;
 //
-//         let __assert_expr = ::equator::Finalize {
-//             expr: ::equator::expr::AndExpr {
-//                 lhs: ::equator::atomic::EqExpr {
+//         let __assert_expr = $crate::Finalize {
+//             expr: $crate::expr::AndExpr {
+//                 lhs: $crate::atomic::EqExpr {
 //                     lhs: __0,
 //                     rhs: __1,
 //                 },
@@ -23,11 +23,11 @@ use syn::*;
 //         };
 //
 //         if !__assert_expr.eval_expr() {
-//             let __assert_message = ::equator::DebugMessage {
+//             let __assert_message = $crate::DebugMessage {
 //                 result: __assert_expr.result(),
-//                 source: ::equator::Finalize {
-//                     expr: ::equator::expr::AndExpr {
-//                         lhs: ::equator::atomic::EqExpr {
+//                 source: $crate::Finalize {
+//                     expr: $crate::expr::AndExpr {
+//                         lhs: $crate::atomic::EqExpr {
 //                             lhs: ::core::stringify!(a),
 //                             rhs: ::core::stringify!(0),
 //                         },
@@ -37,10 +37,10 @@ use syn::*;
 //                     col: ::core::column!(),
 //                     file: ::core::file!(),
 //                 },
-//                 vtable: ::equator::vtable_for(&__assert_expr),
-//                 debug: ::equator::Finalize {
-//                     expr: ::equator::expr::AndExpr {
-//                         lhs: ::equator::atomic::EqExpr {
+//                 vtable: $crate::vtable_for(&__assert_expr),
+//                 debug: $crate::Finalize {
+//                     expr: $crate::expr::AndExpr {
+//                         lhs: $crate::atomic::EqExpr {
 //                             lhs: __0 as *const _ as *const (),
 //                             rhs: __1 as *const _ as *const (),
 //                         },
@@ -51,7 +51,7 @@ use syn::*;
 //                     file: (),
 //                 },
 //             };
-//             let __marker = ::equator::marker(&__assert_message);
+//             let __marker = $crate::marker(&__assert_message);
 //             $crate::panic_failed_assert(
 //                 __marker,
 //                 __assert_message.result,
@@ -87,7 +87,7 @@ struct Code {
 }
 
 impl AssertExpr {
-    fn code(&self) -> Code {
+    fn code(&self, crate_name: syn::Path) -> Code {
         match self {
             AssertExpr::BoolExpr(Operand {
                 placeholder_id,
@@ -108,19 +108,19 @@ impl AssertExpr {
                 },
             ) => Code {
                 assert_expr: quote! {
-                    ::equator::atomic::EqExpr {
-                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
+                    #crate_name::atomic::EqExpr {
+                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
-                    ::equator::atomic::EqExpr {
+                    #crate_name::atomic::EqExpr {
                         lhs: ::core::stringify!(#left_expr),
                         rhs: ::core::stringify!(#right_expr),
                     }
                 },
                 debug: quote! {
-                    ::equator::atomic::EqExpr {
+                    #crate_name::atomic::EqExpr {
                         lhs: (#left_placeholder_id) as *const _ as *const (),
                         rhs: (#right_placeholder_id) as *const _ as *const (),
                     }
@@ -137,19 +137,19 @@ impl AssertExpr {
                 },
             ) => Code {
                 assert_expr: quote! {
-                    ::equator::atomic::NeExpr {
-                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
+                    #crate_name::atomic::NeExpr {
+                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
-                    ::equator::atomic::NeExpr {
+                    #crate_name::atomic::NeExpr {
                         lhs: ::core::stringify!(#left_expr),
                         rhs: ::core::stringify!(#right_expr),
                     }
                 },
                 debug: quote! {
-                    ::equator::atomic::NeExpr {
+                    #crate_name::atomic::NeExpr {
                         lhs: (#left_placeholder_id) as *const _ as *const (),
                         rhs: (#right_placeholder_id) as *const _ as *const (),
                     }
@@ -166,19 +166,19 @@ impl AssertExpr {
                 },
             ) => Code {
                 assert_expr: quote! {
-                    ::equator::atomic::LtExpr {
-                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
+                    #crate_name::atomic::LtExpr {
+                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
-                    ::equator::atomic::LtExpr {
+                    #crate_name::atomic::LtExpr {
                         lhs: ::core::stringify!(#left_expr),
                         rhs: ::core::stringify!(#right_expr),
                     }
                 },
                 debug: quote! {
-                    ::equator::atomic::LtExpr {
+                    #crate_name::atomic::LtExpr {
                         lhs: (#left_placeholder_id) as *const _ as *const (),
                         rhs: (#right_placeholder_id) as *const _ as *const (),
                     }
@@ -195,19 +195,19 @@ impl AssertExpr {
                 },
             ) => Code {
                 assert_expr: quote! {
-                    ::equator::atomic::LeExpr {
-                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
+                    #crate_name::atomic::LeExpr {
+                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
-                    ::equator::atomic::LeExpr {
+                    #crate_name::atomic::LeExpr {
                         lhs: ::core::stringify!(#left_expr),
                         rhs: ::core::stringify!(#right_expr),
                     }
                 },
                 debug: quote! {
-                    ::equator::atomic::LeExpr {
+                    #crate_name::atomic::LeExpr {
                         lhs: (#left_placeholder_id) as *const _ as *const (),
                         rhs: (#right_placeholder_id) as *const _ as *const (),
                     }
@@ -224,19 +224,19 @@ impl AssertExpr {
                 },
             ) => Code {
                 assert_expr: quote! {
-                    ::equator::atomic::GtExpr {
-                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
+                    #crate_name::atomic::GtExpr {
+                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
-                    ::equator::atomic::GtExpr {
+                    #crate_name::atomic::GtExpr {
                         lhs: ::core::stringify!(#left_expr),
                         rhs: ::core::stringify!(#right_expr),
                     }
                 },
                 debug: quote! {
-                    ::equator::atomic::GtExpr {
+                    #crate_name::atomic::GtExpr {
                         lhs: (#left_placeholder_id) as *const _ as *const (),
                         rhs: (#right_placeholder_id) as *const _ as *const (),
                     }
@@ -253,19 +253,19 @@ impl AssertExpr {
                 },
             ) => Code {
                 assert_expr: quote! {
-                    ::equator::atomic::GeExpr {
-                        lhs: (& &::equator::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &::equator::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
+                    #crate_name::atomic::GeExpr {
+                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
+                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
                     }
                 },
                 source: quote! {
-                    ::equator::atomic::GeExpr {
+                    #crate_name::atomic::GeExpr {
                         lhs: ::core::stringify!(#left_expr),
                         rhs: ::core::stringify!(#right_expr),
                     }
                 },
                 debug: quote! {
-                    ::equator::atomic::GeExpr {
+                    #crate_name::atomic::GeExpr {
                         lhs: (#left_placeholder_id) as *const _ as *const (),
                         rhs: (#right_placeholder_id) as *const _ as *const (),
                     }
@@ -277,27 +277,27 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     debug: left_debug,
-                } = left.code();
+                } = left.code(crate_name.clone());
                 let Code {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     debug: right_debug,
-                } = right.code();
+                } = right.code(crate_name.clone());
                 Code {
                     assert_expr: quote! {
-                        ::equator::expr::AndExpr {
+                        #crate_name::expr::AndExpr {
                             lhs: (#left_assert_expr),
                             rhs: (#right_assert_expr),
                         }
                     },
                     source: quote! {
-                        ::equator::expr::AndExpr {
+                        #crate_name::expr::AndExpr {
                             lhs: (#left_source),
                             rhs: (#right_source),
                         }
                     },
                     debug: quote! {
-                        ::equator::expr::AndExpr {
+                        #crate_name::expr::AndExpr {
                             lhs: (#left_debug),
                             rhs: (#right_debug),
                         }
@@ -310,27 +310,27 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     debug: left_debug,
-                } = left.code();
+                } = left.code(crate_name.clone());
                 let Code {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     debug: right_debug,
-                } = right.code();
+                } = right.code(crate_name.clone());
                 Code {
                     assert_expr: quote! {
-                        ::equator::expr::OrExpr {
+                        #crate_name::expr::OrExpr {
                             lhs: (#left_assert_expr),
                             rhs: (#right_assert_expr),
                         }
                     },
                     source: quote! {
-                        ::equator::expr::OrExpr {
+                        #crate_name::expr::OrExpr {
                             lhs: (#left_source),
                             rhs: (#right_source),
                         }
                     },
                     debug: quote! {
-                        ::equator::expr::OrExpr {
+                        #crate_name::expr::OrExpr {
                             lhs: (#left_debug),
                             rhs: (#right_debug),
                         }
@@ -577,35 +577,51 @@ fn handle_expr(
     }
 }
 
+type FormatArgs = syn::punctuated::Punctuated<syn::Expr, syn::token::Comma>;
+
+struct Args {
+    crate_name: syn::Path,
+    expr: syn::Expr,
+    format_args: Option<FormatArgs>,
+}
+
+impl syn::parse::Parse for Args {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let crate_name = input.parse()?;
+        let _comma: syn::token::Comma = input.parse()?;
+        let expr = input.parse()?;
+        let format_args = if input.is_empty() {
+            FormatArgs::new()
+        } else {
+            input.parse::<syn::token::Comma>()?;
+            FormatArgs::parse_terminated(input)?
+        };
+
+        let format_args = Some(format_args).filter(|x| !x.is_empty());
+        Ok(Self {
+            crate_name,
+            expr,
+            format_args,
+        })
+    }
+}
+
 #[proc_macro]
 pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item: TokenStream = item.into();
-    let Ok(body) = parse2::<Expr>(quote! { __fn_call(#item) }) else {
+    let Ok(input) = parse2::<Args>(item) else {
         return quote! {
-            ::core::compile_error!("invalid expression");
+            ::core::compile_error!("invalid arguments");
         }
         .into();
     };
 
-    let (body, args) = match body {
-        Expr::Call(expr) => {
-            let mut args = expr.args.into_iter().collect::<Vec<_>>();
-            if args.is_empty() {
-                return quote! {
-                    ::core::compile_error!("invalid expression");
-                }
-                .into();
-            }
-            let body = args.remove(0);
-            (body, args)
-        }
-        _ => {
-            return quote! {
-                ::core::compile_error!("invalid expression");
-            }
-            .into();
-        }
-    };
+    let crate_name = input.crate_name;
+    let args = input
+        .format_args
+        .map(|punc| punc.into_iter().collect())
+        .unwrap_or(Vec::new());
+    let body = input.expr;
 
     let mut atomics = Vec::new();
     let assert_expr = handle_expr(&mut atomics, 0, body).1;
@@ -619,16 +635,16 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         assert_expr,
         source,
         debug,
-    } = assert_expr.code();
+    } = assert_expr.code(crate_name.clone());
 
     let outer_block = if args.is_empty() {
         quote! {
             match (#(&(#atomics),)*) {
                 (#(#placeholders,)*) => {
-                    use ::equator::Expr;
-                    use ::equator::TryDebugWrap;
+                    use #crate_name::Expr;
+                    use #crate_name::TryDebugWrap;
 
-                    let __assert_expr = ::equator::Finalize {
+                    let __assert_expr = #crate_name::Finalize {
                         expr: #assert_expr,
                         line: (),
                         col: (),
@@ -636,24 +652,24 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     };
 
                     if !__assert_expr.eval_expr() {
-                        let __assert_message = ::equator::DebugMessage {
+                        let __assert_message = #crate_name::DebugMessage {
                             result: __assert_expr.result(),
-                            source: &::equator::Finalize {
+                            source: &#crate_name::Finalize {
                                 expr: #source,
                                 line: ::core::line!(),
                                 col: ::core::column!(),
                                 file: ::core::file!(),
                             },
-                            vtable: ::equator::vtable_for(&__assert_expr),
-                            debug: &::equator::Finalize {
+                            vtable: #crate_name::vtable_for(&__assert_expr),
+                            debug: &#crate_name::Finalize {
                                 expr: #debug,
                                 line: (),
                                 col: (),
                                 file: (),
                             },
                         };
-                        let __marker = ::equator::marker(&__assert_message);
-                        ::equator::panic_failed_assert(
+                        let __marker = #crate_name::marker(&__assert_message);
+                        #crate_name::panic_failed_assert(
                             __marker,
                             __assert_message.result,
                             __assert_message.source,
@@ -668,10 +684,10 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         quote! {
             match (#(&(#atomics),)* ::core::format_args!(#(#args,)*)) {
                 (#(#placeholders,)* __message) => {
-                    use ::equator::Expr;
-                    use ::equator::TryDebugWrap;
+                    use #crate_name::Expr;
+                    use #crate_name::TryDebugWrap;
 
-                    let __assert_expr = ::equator::Finalize {
+                    let __assert_expr = #crate_name::Finalize {
                         expr: #assert_expr,
                         line: (),
                         col: (),
@@ -679,24 +695,24 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     };
 
                     if !__assert_expr.eval_expr() {
-                        let __assert_message = ::equator::DebugMessage {
+                        let __assert_message = #crate_name::DebugMessage {
                             result: __assert_expr.result(),
-                            source: &::equator::Finalize {
+                            source: &#crate_name::Finalize {
                                 expr: #source,
                                 line: ::core::line!(),
                                 col: ::core::column!(),
                                 file: ::core::file!(),
                             },
-                            vtable: ::equator::vtable_for(&__assert_expr),
-                            debug: &::equator::Finalize {
+                            vtable: #crate_name::vtable_for(&__assert_expr),
+                            debug: &#crate_name::Finalize {
                                 expr: #debug,
                                 line: (),
                                 col: (),
                                 file: (),
                             },
                         };
-                        let __marker = ::equator::marker(&__assert_message);
-                        ::equator::panic_failed_assert_with_message(
+                        let __marker = #crate_name::marker(&__assert_message);
+                        #crate_name::panic_failed_assert_with_message(
                             __marker,
                             __message,
                             __assert_message.result,

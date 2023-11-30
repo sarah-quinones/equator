@@ -3,12 +3,22 @@
 use core::fmt::{Debug, Formatter, Result};
 use core::marker::PhantomData;
 
-pub use equator_macro::assert;
+#[doc(hidden)]
+pub use equator_macro::assert as __assert_impl;
+
+#[macro_export]
+macro_rules! assert {
+    ($($tokens: tt)*) => {
+        #[cfg(debug_assertions)]
+        $crate::__assert_impl!($crate, $($tokens)*)
+    };
+}
+
 #[macro_export]
 macro_rules! debug_assert {
     ($($tokens: tt)*) => {
         #[cfg(debug_assertions)]
-        $crate::assert!($($tokens)*)
+        $crate::__assert_impl!($crate, $($tokens)*)
     };
 }
 
