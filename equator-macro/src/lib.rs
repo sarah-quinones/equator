@@ -5,7 +5,7 @@ use syn::*;
 // assert!(all(a == 0, b))
 // should expand to
 //
-// match (&a, &0, &b) {
+// match (&(a), &(0), &(b)) {
 //     (__0, __1, __2) => {
 //         use ::equator::Expr;
 //
@@ -623,7 +623,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let outer_block = if args.is_empty() {
         quote! {
-            match (#(&#atomics,)*) {
+            match (#(&(#atomics),)*) {
                 (#(#placeholders,)*) => {
                     use ::equator::Expr;
                     use ::equator::TryDebugWrap;
@@ -666,7 +666,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     } else {
         quote! {
-            match (#(&#atomics,)* ::core::format_args!(#(#args,)*)) {
+            match (#(&(#atomics),)* ::core::format_args!(#(#args,)*)) {
                 (#(#placeholders,)* __message) => {
                     use ::equator::Expr;
                     use ::equator::TryDebugWrap;

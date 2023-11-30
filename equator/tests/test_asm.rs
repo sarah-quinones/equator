@@ -45,6 +45,7 @@ pub fn test() {
     let y = 2;
     let z = true;
     equator::assert!(all(true == false, x < y, any(!z, z)));
+    equator::assert!(all(true == false, x + 1 < y, any(!z, z)));
 
     black_box(test_asm_1(black_box(2), black_box(4)));
     black_box(test_asm_2(
