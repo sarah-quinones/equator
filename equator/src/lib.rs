@@ -760,6 +760,7 @@ pub const fn vtable_for<T: DynDebug>(_: &T) -> &'static T::VTable {
 #[cold]
 #[inline(never)]
 #[doc(hidden)]
+#[track_caller]
 pub fn panic_failed_assert<'a, M: core::fmt::Debug + FromParts<'a>>(
     __marker: PhantomData<M>,
     result: M::Result,
@@ -773,6 +774,7 @@ pub fn panic_failed_assert<'a, M: core::fmt::Debug + FromParts<'a>>(
 #[cold]
 #[inline(never)]
 #[doc(hidden)]
+#[track_caller]
 pub fn panic_failed_assert_with_message<'a, M: core::fmt::Debug + FromParts<'a>>(
     __marker: PhantomData<M>,
     message: core::fmt::Arguments,
