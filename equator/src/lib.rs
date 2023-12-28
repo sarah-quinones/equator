@@ -9,7 +9,6 @@ pub use equator_macro::assert as __assert_impl;
 #[macro_export]
 macro_rules! assert {
     ($($tokens: tt)*) => {
-        #[cfg(debug_assertions)]
         $crate::__assert_impl!($crate, $($tokens)*)
     };
 }
@@ -872,5 +871,28 @@ mod tests {
                 },
             },
         );
+    }
+
+    mod macro_export {
+        use super::*;
+
+        #[test]
+        #[should_panic]
+        fn test_assert() {
+            assert!(false);
+        }
+
+        #[cfg(not(debug_assertions))]
+        #[test]
+        fn test_debug_assert() {
+            debug_assert!(false);
+        }
+
+        #[cfg(debug_assertions)]
+        #[test]
+        #[should_panic]
+        fn test_debug_assert() {
+            debug_assert!(false);
+        }
     }
 }
