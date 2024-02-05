@@ -555,27 +555,27 @@ impl DynDebug for bool {
 }
 impl<Lhs: Debug, Rhs: Debug> DynDebug for EqExpr<&Lhs, &Rhs> {
     type VTable = (PtrToDebug, PtrToDebug);
-    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Lhs>());
+    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: Debug, Rhs: Debug> DynDebug for NeExpr<&Lhs, &Rhs> {
     type VTable = (PtrToDebug, PtrToDebug);
-    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Lhs>());
+    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: Debug, Rhs: Debug> DynDebug for LtExpr<&Lhs, &Rhs> {
     type VTable = (PtrToDebug, PtrToDebug);
-    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Lhs>());
+    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: Debug, Rhs: Debug> DynDebug for LeExpr<&Lhs, &Rhs> {
     type VTable = (PtrToDebug, PtrToDebug);
-    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Lhs>());
+    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: Debug, Rhs: Debug> DynDebug for GeExpr<&Lhs, &Rhs> {
     type VTable = (PtrToDebug, PtrToDebug);
-    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Lhs>());
+    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: Debug, Rhs: Debug> DynDebug for GtExpr<&Lhs, &Rhs> {
     type VTable = (PtrToDebug, PtrToDebug);
-    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Lhs>());
+    const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: DynDebug, Rhs: DynDebug> DynDebug for AndExpr<Lhs, Rhs> {
     type VTable = (Lhs::VTable, Rhs::VTable);

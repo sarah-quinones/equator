@@ -88,3 +88,9 @@ pub fn test_asm() {
         black_box(7),
     ));
 }
+
+#[test]
+#[should_panic]
+pub fn test_different_types() {
+    equator::assert!([0, 1, 2].as_slice() == &[0, 1]);
+}
