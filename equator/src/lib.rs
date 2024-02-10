@@ -750,6 +750,34 @@ impl<E: Expr> Expr for Finalize<E, (), (), ()> {
     }
 }
 
+impl<E> Expr for &Finalize<E, (), (), ()> {
+    type Result = bool;
+
+    #[inline(always)]
+    fn eval_expr(&self) -> bool {
+        unimplemented!()
+    }
+
+    #[inline(always)]
+    fn result(&self) -> Self::Result {
+        unimplemented!()
+    }
+}
+
+impl<E: Expr> Expr for &&Finalize<E, (), (), ()> {
+    type Result = E::Result;
+
+    #[inline(always)]
+    fn eval_expr(&self) -> bool {
+        self.expr.eval_expr()
+    }
+
+    #[inline(always)]
+    fn result(&self) -> Self::Result {
+        self.expr.result()
+    }
+}
+
 #[inline(always)]
 #[doc(hidden)]
 pub const fn vtable_for<T: DynDebug>(_: &T) -> &'static T::VTable {

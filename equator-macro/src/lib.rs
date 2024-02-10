@@ -347,6 +347,7 @@ fn usize_to_ident(idx: usize) -> Ident {
 
 fn handle_expr(
     atomics: &mut Vec<Expr>,
+    diagnostics: &mut Vec<TokenStream>,
     mut placeholder_id: usize,
     expr: Expr,
 ) -> (usize, AssertExpr) {
@@ -383,9 +384,10 @@ fn handle_expr(
                 let mut assert_expr;
                 let mut arg_expr;
                 (placeholder_id, assert_expr) =
-                    handle_expr(atomics, placeholder_id, args.pop().unwrap());
+                    handle_expr(atomics, diagnostics, placeholder_id, args.pop().unwrap());
                 while let Some(arg) = args.pop() {
-                    (placeholder_id, arg_expr) = handle_expr(atomics, placeholder_id, arg);
+                    (placeholder_id, arg_expr) =
+                        handle_expr(atomics, diagnostics, placeholder_id, arg);
                     assert_expr = AssertExpr::AndExpr(Box::new((arg_expr, assert_expr)));
                 }
                 (placeholder_id, assert_expr)
@@ -423,9 +425,10 @@ fn handle_expr(
                 let mut assert_expr;
                 let mut arg_expr;
                 (placeholder_id, assert_expr) =
-                    handle_expr(atomics, placeholder_id, args.pop().unwrap());
+                    handle_expr(atomics, diagnostics, placeholder_id, args.pop().unwrap());
                 while let Some(arg) = args.pop() {
-                    (placeholder_id, arg_expr) = handle_expr(atomics, placeholder_id, arg);
+                    (placeholder_id, arg_expr) =
+                        handle_expr(atomics, diagnostics, placeholder_id, arg);
                     assert_expr = AssertExpr::OrExpr(Box::new((arg_expr, assert_expr)));
                 }
                 (placeholder_id, assert_expr)
@@ -438,6 +441,9 @@ fn handle_expr(
             ..
         }) => (
             {
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(quote! { #lhs == #rhs });
                 atomics.push((*left).clone());
                 atomics.push((*right).clone());
                 placeholder_id + 2
@@ -461,6 +467,9 @@ fn handle_expr(
             ..
         }) => (
             {
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(quote! { #lhs != #rhs });
                 atomics.push((*left).clone());
                 atomics.push((*right).clone());
                 placeholder_id + 2
@@ -483,6 +492,9 @@ fn handle_expr(
             ..
         }) => (
             {
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(quote! { #lhs < #rhs });
                 atomics.push((*left).clone());
                 atomics.push((*right).clone());
                 placeholder_id + 2
@@ -505,6 +517,9 @@ fn handle_expr(
             ..
         }) => (
             {
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(quote! { #lhs <= #rhs });
                 atomics.push((*left).clone());
                 atomics.push((*right).clone());
                 placeholder_id + 2
@@ -527,6 +542,9 @@ fn handle_expr(
             ..
         }) => (
             {
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(quote! { #lhs > #rhs });
                 atomics.push((*left).clone());
                 atomics.push((*right).clone());
                 placeholder_id + 2
@@ -549,6 +567,9 @@ fn handle_expr(
             ..
         }) => (
             {
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(quote! { #lhs >= #rhs });
                 atomics.push((*left).clone());
                 atomics.push((*right).clone());
                 placeholder_id + 2
@@ -566,6 +587,8 @@ fn handle_expr(
         ),
         expr => (
             {
+                let expr_clone = expr.clone();
+                diagnostics.push(quote! { #expr_clone });
                 atomics.push(expr.clone());
                 placeholder_id + 1
             },
@@ -624,7 +647,8 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let body = input.expr;
 
     let mut atomics = Vec::new();
-    let assert_expr = handle_expr(&mut atomics, 0, body).1;
+    let mut diagnostics = Vec::new();
+    let assert_expr = handle_expr(&mut atomics, &mut diagnostics, 0, body.clone()).1;
     let atomics = atomics;
     let placeholders = atomics
         .iter()
@@ -641,6 +665,9 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         quote! {
             match (#(&(#atomics),)*) {
                 (#(#placeholders,)*) => {
+                    if false {
+                        #(let _ = #diagnostics;)*
+                    }
                     use #crate_name::Expr;
                     use #crate_name::TryDebugWrap;
 
@@ -651,9 +678,9 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         file: (),
                     };
 
-                    if !__assert_expr.eval_expr() {
+                    if !(&&&__assert_expr).eval_expr() {
                         let __assert_message = #crate_name::DebugMessage {
-                            result: __assert_expr.result(),
+                            result: (&&&__assert_expr).result(),
                             source: &#crate_name::Finalize {
                                 expr: #source,
                                 line: ::core::line!(),
@@ -684,6 +711,10 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         quote! {
             match (#(&(#atomics),)* ::core::format_args!(#(#args,)*)) {
                 (#(#placeholders,)* __message) => {
+                    if false {
+                        #(let _ = #diagnostics;)*
+                    }
+
                     use #crate_name::Expr;
                     use #crate_name::TryDebugWrap;
 
@@ -694,9 +725,9 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         file: (),
                     };
 
-                    if !__assert_expr.eval_expr() {
+                    if !(&&&__assert_expr).eval_expr() {
                         let __assert_message = #crate_name::DebugMessage {
-                            result: __assert_expr.result(),
+                            result: (&&&__assert_expr).result(),
                             source: &#crate_name::Finalize {
                                 expr: #source,
                                 line: ::core::line!(),

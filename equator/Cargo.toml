@@ -1,6 +1,6 @@
 [package]
 name = "equator"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 authors = ["sarah <>"]
 description = "Composable assertion library"
