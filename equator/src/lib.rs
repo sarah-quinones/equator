@@ -16,8 +16,9 @@ macro_rules! assert {
 #[macro_export]
 macro_rules! debug_assert {
     ($($tokens: tt)*) => {
-        #[cfg(debug_assertions)]
-        $crate::__assert_impl!($crate, $($tokens)*)
+        if cfg!(debug_assertions) {
+            $crate::__assert_impl!($crate, $($tokens)*)
+        }
     };
 }
 
