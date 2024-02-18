@@ -402,7 +402,7 @@ impl<
         'a,
         AndExpr<LhsResult, RhsResult>,
         AndExpr<LhsSource, RhsSource>,
-        (LhsVTable, RhsVTable),
+        (&'static LhsVTable, &'static RhsVTable),
         AndExpr<LhsDebug, RhsDebug>,
     >
 where
@@ -413,13 +413,13 @@ where
         let lhs = DebugMessage {
             result: self.result.lhs,
             source: &self.source.lhs,
-            vtable: &self.vtable.0,
+            vtable: self.vtable.0,
             debug: &self.debug.lhs,
         };
         let rhs = DebugMessage {
             result: self.result.rhs,
             source: &self.source.rhs,
-            vtable: &self.vtable.1,
+            vtable: self.vtable.1,
             debug: &self.debug.rhs,
         };
 
@@ -455,7 +455,7 @@ impl<
         'a,
         OrExpr<LhsResult, RhsResult>,
         OrExpr<LhsSource, RhsSource>,
-        (LhsVTable, RhsVTable),
+        (&'static LhsVTable, &'static RhsVTable),
         OrExpr<LhsDebug, RhsDebug>,
     >
 where
@@ -466,13 +466,13 @@ where
         let lhs = DebugMessage {
             result: self.result.lhs,
             source: &self.source.lhs,
-            vtable: &self.vtable.0,
+            vtable: self.vtable.0,
             debug: &self.debug.lhs,
         };
         let rhs = DebugMessage {
             result: self.result.rhs,
             source: &self.source.rhs,
-            vtable: &self.vtable.1,
+            vtable: self.vtable.1,
             debug: &self.debug.rhs,
         };
 
@@ -579,12 +579,12 @@ impl<Lhs: Debug, Rhs: Debug> DynDebug for GtExpr<&Lhs, &Rhs> {
     const VTABLE: &'static Self::VTable = &(as_debug_vptr::<Lhs>(), as_debug_vptr::<Rhs>());
 }
 impl<Lhs: DynDebug, Rhs: DynDebug> DynDebug for AndExpr<Lhs, Rhs> {
-    type VTable = (Lhs::VTable, Rhs::VTable);
-    const VTABLE: &'static Self::VTable = &(*Lhs::VTABLE, *Rhs::VTABLE);
+    type VTable = (&'static Lhs::VTable, &'static Rhs::VTable);
+    const VTABLE: &'static Self::VTable = &(Lhs::VTABLE, Rhs::VTABLE);
 }
 impl<Lhs: DynDebug, Rhs: DynDebug> DynDebug for OrExpr<Lhs, Rhs> {
-    type VTable = (Lhs::VTable, Rhs::VTable);
-    const VTABLE: &'static Self::VTable = &(*Lhs::VTABLE, *Rhs::VTABLE);
+    type VTable = (&'static Lhs::VTable, &'static Rhs::VTable);
+    const VTABLE: &'static Self::VTable = &(Lhs::VTABLE, Rhs::VTABLE);
 }
 impl<E: DynDebug> DynDebug for Finalize<E, (), (), ()> {
     type VTable = E::VTable;
