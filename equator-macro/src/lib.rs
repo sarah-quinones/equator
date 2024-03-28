@@ -694,6 +694,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 col: (),
                                 file: (),
                             },
+                            message: ::core::format_args!(""),
                         };
                         let __marker = #crate_name::marker(&__assert_message);
                         #crate_name::panic_failed_assert(
@@ -741,11 +742,12 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 col: (),
                                 file: (),
                             },
+                            message: __message,
                         };
                         let __marker = #crate_name::marker(&__assert_message);
                         #crate_name::panic_failed_assert_with_message(
                             __marker,
-                            __message,
+                            __assert_message.message,
                             __assert_message.result,
                             __assert_message.source,
                             __assert_message.vtable,

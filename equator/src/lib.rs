@@ -230,6 +230,7 @@ pub trait FromParts<'a> {
         source: &'a Self::Source,
         vtable: &'a Self::VTable,
         debug: &'a Self::Debug,
+        message: core::fmt::Arguments<'a>,
     ) -> Self;
 }
 impl<'a, Result, Source, Debug, VTable> FromParts<'a>
@@ -245,12 +246,14 @@ impl<'a, Result, Source, Debug, VTable> FromParts<'a>
         source: &'a Source,
         vtable: &'a VTable,
         debug: &'a Debug,
+        message: core::fmt::Arguments<'a>,
     ) -> Self {
         Self {
             result,
             source,
             debug,
             vtable,
+            message,
         }
     }
 }
@@ -261,6 +264,7 @@ pub struct DebugMessage<'a, Result, Source, VTable, Debug> {
     pub source: &'a Source,
     pub debug: &'a Debug,
     pub vtable: &'a VTable,
+    pub message: core::fmt::Arguments<'a>,
 }
 
 impl Debug for DebugMessage<'_, bool, &'static str, (), bool> {
@@ -268,7 +272,7 @@ impl Debug for DebugMessage<'_, bool, &'static str, (), bool> {
         let source = &self.source;
         let debug = &self.debug;
         write!(f, "Assertion failed: {source}\n")?;
-        write!(f, "- {source} = {debug:?}")
+        write!(f, "- {source} = {debug:#?}")
     }
 }
 
@@ -287,8 +291,8 @@ impl Debug
         let lhs = unsafe { self.vtable.0(self.debug.lhs) };
         let rhs = unsafe { self.vtable.1(self.debug.rhs) };
         write!(f, "Assertion failed: {lhs_source} == {rhs_source}\n")?;
-        write!(f, "- {lhs_source} = {lhs:?}\n")?;
-        write!(f, "- {rhs_source} = {rhs:?}")
+        write!(f, "- {lhs_source} = {lhs:#?}\n")?;
+        write!(f, "- {rhs_source} = {rhs:#?}")
     }
 }
 impl Debug
@@ -306,8 +310,8 @@ impl Debug
         let lhs = unsafe { self.vtable.0(self.debug.lhs) };
         let rhs = unsafe { self.vtable.1(self.debug.rhs) };
         write!(f, "Assertion failed: {lhs_source} != {rhs_source}\n")?;
-        write!(f, "- {lhs_source} = {lhs:?}\n")?;
-        write!(f, "- {rhs_source} = {rhs:?}")
+        write!(f, "- {lhs_source} = {lhs:#?}\n")?;
+        write!(f, "- {rhs_source} = {rhs:#?}")
     }
 }
 impl Debug
@@ -325,8 +329,8 @@ impl Debug
         let lhs = unsafe { self.vtable.0(self.debug.lhs) };
         let rhs = unsafe { self.vtable.1(self.debug.rhs) };
         write!(f, "Assertion failed: {lhs_source} < {rhs_source}\n")?;
-        write!(f, "- {lhs_source} = {lhs:?}\n")?;
-        write!(f, "- {rhs_source} = {rhs:?}")
+        write!(f, "- {lhs_source} = {lhs:#?}\n")?;
+        write!(f, "- {rhs_source} = {rhs:#?}")
     }
 }
 impl Debug
@@ -344,8 +348,8 @@ impl Debug
         let lhs = unsafe { self.vtable.0(self.debug.lhs) };
         let rhs = unsafe { self.vtable.1(self.debug.rhs) };
         write!(f, "Assertion failed: {lhs_source} <= {rhs_source}\n")?;
-        write!(f, "- {lhs_source} = {lhs:?}\n")?;
-        write!(f, "- {rhs_source} = {rhs:?}")
+        write!(f, "- {lhs_source} = {lhs:#?}\n")?;
+        write!(f, "- {rhs_source} = {rhs:#?}")
     }
 }
 impl Debug
@@ -363,8 +367,8 @@ impl Debug
         let lhs = unsafe { self.vtable.0(self.debug.lhs) };
         let rhs = unsafe { self.vtable.1(self.debug.rhs) };
         write!(f, "Assertion failed: {lhs_source} > {rhs_source}\n")?;
-        write!(f, "- {lhs_source} = {lhs:?}\n")?;
-        write!(f, "- {rhs_source} = {rhs:?}")
+        write!(f, "- {lhs_source} = {lhs:#?}\n")?;
+        write!(f, "- {rhs_source} = {rhs:#?}")
     }
 }
 impl Debug
@@ -382,8 +386,8 @@ impl Debug
         let lhs = unsafe { self.vtable.0(self.debug.lhs) };
         let rhs = unsafe { self.vtable.1(self.debug.rhs) };
         write!(f, "Assertion failed: {lhs_source} >= {rhs_source}\n")?;
-        write!(f, "- {lhs_source} = {lhs:?}\n")?;
-        write!(f, "- {rhs_source} = {rhs:?}")
+        write!(f, "- {lhs_source} = {lhs:#?}\n")?;
+        write!(f, "- {rhs_source} = {rhs:#?}")
     }
 }
 
@@ -415,12 +419,14 @@ where
             source: &self.source.lhs,
             vtable: self.vtable.0,
             debug: &self.debug.lhs,
+            message: core::format_args!(""),
         };
         let rhs = DebugMessage {
             result: self.result.rhs,
             source: &self.source.rhs,
             vtable: self.vtable.1,
             debug: &self.debug.rhs,
+            message: core::format_args!(""),
         };
 
         let lhs_eval = lhs.result.eval();
@@ -468,12 +474,14 @@ where
             source: &self.source.lhs,
             vtable: self.vtable.0,
             debug: &self.debug.lhs,
+            message: core::format_args!(""),
         };
         let rhs = DebugMessage {
             result: self.result.rhs,
             source: &self.source.rhs,
             vtable: self.vtable.1,
             debug: &self.debug.rhs,
+            message: core::format_args!(""),
         };
 
         let lhs_eval = lhs.result.eval();
@@ -510,12 +518,17 @@ where
             source: &self.source.expr,
             debug: &self.debug.expr,
             vtable: self.vtable,
+            message: format_args!(""),
         };
+        let message = self.message;
         write!(
             f,
             "Assertion failed at {}:{}:{}\n",
             self.source.file, self.source.line, self.source.col
         )?;
+        if !message.as_str().is_some_and(|s| s.len() == 0) {
+            write!(f, "{message:#?}\n")?;
+        }
         inner.fmt(f)
     }
 }
@@ -796,7 +809,10 @@ pub fn panic_failed_assert<'a, M: core::fmt::Debug + FromParts<'a>>(
     vtable: &'a M::VTable,
     debug: &'a M::Debug,
 ) -> ! {
-    panic!("{:#?}", M::from_parts(result, source, vtable, debug))
+    panic!(
+        "{:#?}",
+        M::from_parts(result, source, vtable, debug, core::format_args!(""))
+    )
 }
 
 #[cold]
@@ -805,15 +821,15 @@ pub fn panic_failed_assert<'a, M: core::fmt::Debug + FromParts<'a>>(
 #[track_caller]
 pub fn panic_failed_assert_with_message<'a, M: core::fmt::Debug + FromParts<'a>>(
     __marker: PhantomData<M>,
-    message: core::fmt::Arguments,
+    message: core::fmt::Arguments<'a>,
     result: M::Result,
     source: &'a M::Source,
     vtable: &'a M::VTable,
     debug: &'a M::Debug,
 ) -> ! {
     panic!(
-        "{message}\n{:#?}",
-        M::from_parts(result, source, vtable, debug)
+        "{:#?}",
+        M::from_parts(result, source, vtable, debug, message)
     )
 }
 
@@ -830,6 +846,7 @@ mod tests {
                     source: $source,
                     vtable: vtable_for(&e),
                     debug: $debug,
+                    message: format_args!(""),
                 };
                 let __marker = $crate::marker(&message);
                 $crate::panic_failed_assert(
