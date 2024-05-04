@@ -1,4 +1,5 @@
 use core::hint::black_box;
+use std::collections::HashMap;
 
 #[inline(never)]
 #[track_caller]
@@ -93,4 +94,11 @@ pub fn test_asm() {
 #[should_panic]
 pub fn test_different_types() {
     equator::assert!([0, 1, 2].as_slice() == &[0, 1]);
+}
+
+#[test]
+pub fn test_move() {
+    let ref mut m = HashMap::<usize, Vec<()>>::new();
+    let x = vec![];
+    equator::assert!(m.insert(0, x).is_none());
 }

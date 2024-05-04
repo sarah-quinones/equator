@@ -587,8 +587,8 @@ fn handle_expr(
         ),
         expr => (
             {
-                let expr_clone = expr.clone();
-                diagnostics.push(quote! { #expr_clone });
+                let val = usize_to_ident(placeholder_id);
+                diagnostics.push(quote! { *#val });
                 atomics.push(expr.clone());
                 placeholder_id + 1
             },
@@ -666,7 +666,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
             match (#(&(#atomics),)*) {
                 (#(#placeholders,)*) => {
                     if false {
-                        #(let _ = #diagnostics;)*
+                        #(let _: bool = #diagnostics;)*
                     }
                     use #crate_name::Expr;
                     use #crate_name::TryDebugWrap;
@@ -713,7 +713,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
             match (#(&(#atomics),)* ::core::format_args!(#(#args,)*)) {
                 (#(#placeholders,)* __message) => {
                     if false {
-                        #(let _ = #diagnostics;)*
+                        #(let _: bool = #diagnostics;)*
                     }
 
                     use #crate_name::Expr;
