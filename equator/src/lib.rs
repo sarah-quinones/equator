@@ -526,8 +526,9 @@ where
             "Assertion failed at {}:{}:{}\n",
             self.source.file, self.source.line, self.source.col
         )?;
-        if !message.as_str().is_some_and(|s| s.len() == 0) {
-            write!(f, "{message:#?}\n")?;
+        match message.as_str() {
+            Some(s) if s.len() == 0 => {}
+            _ => write!(f, "{message:#?}\n")?,
         }
         inner.fmt(f)
     }
