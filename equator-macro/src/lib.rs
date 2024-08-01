@@ -1,81 +1,156 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
+use spanned::Spanned;
 use syn::*;
+use syn_expr::{CmpOp, CustomExpr};
 
-// assert!(all(a == 0, b))
-// should expand to
-//
-// match (&(a), &(0), &(b)) {
-//     (__0, __1, __2) => {
-//         use $crate::Expr;
-//
-//         let __assert_expr = $crate::Finalize {
-//             expr: $crate::expr::AndExpr {
-//                 lhs: $crate::atomic::EqExpr {
-//                     lhs: __0,
-//                     rhs: __1,
-//                 },
-//                 rhs: *__2,
-//             },
-//             line: (),
-//             col: (),
-//             file: (),
-//         };
-//
-//         if !__assert_expr.eval_expr() {
-//             let __assert_message = $crate::DebugMessage {
-//                 result: __assert_expr.result(),
-//                 source: $crate::Finalize {
-//                     expr: $crate::expr::AndExpr {
-//                         lhs: $crate::atomic::EqExpr {
-//                             lhs: ::core::stringify!(a),
-//                             rhs: ::core::stringify!(0),
-//                         },
-//                         rhs: ::core::stringify!(b),
-//                     },
-//                     line: ::core::line!(),
-//                     col: ::core::column!(),
-//                     file: ::core::file!(),
-//                 },
-//                 vtable: $crate::vtable_for(&__assert_expr),
-//                 debug: $crate::Finalize {
-//                     expr: $crate::expr::AndExpr {
-//                         lhs: $crate::atomic::EqExpr {
-//                             lhs: __0 as *const _ as *const (),
-//                             rhs: __1 as *const _ as *const (),
-//                         },
-//                         rhs: *__2,
-//                     },
-//                     line: (),
-//                     col: (),
-//                     file: (),
-//                 },
-//             };
-//             let __marker = $crate::marker(&__assert_message);
-//             $crate::panic_failed_assert(
-//                 __marker,
-//                 __assert_message.result,
-//                 __assert_message.source,
-//                 __assert_message.vtable,
-//                 __assert_message.debug,
-//             );
-//         }
-//     }
-// }
+mod syn_expr {
+    #![allow(dead_code)]
+
+    use syn::{
+        custom_keyword, parenthesized, punctuated::Punctuated, token::Paren, BinOp, Expr,
+        ExprBinary, Token,
+    };
+
+    custom_keyword!(all);
+    custom_keyword!(any);
+
+    #[derive(Clone)]
+    pub enum CmpOp {
+        Custom(Token![:], Expr, Token![:]),
+        Approx(Token![~]),
+        Eq(Token![==]),
+        Ne(Token![!=]),
+        Ge(Token![>=]),
+        Le(Token![<=]),
+        Gt(Token![>]),
+        Lt(Token![<]),
+    }
+
+    #[derive(Clone)]
+    pub enum CustomExpr {
+        All {
+            all_token: all,
+            paren_token: Paren,
+            args: Punctuated<CustomExpr, Token![,]>,
+        },
+        Any {
+            any_token: any,
+            paren_token: Paren,
+            args: Punctuated<CustomExpr, Token![,]>,
+        },
+        Cmp {
+            left: Expr,
+            op: CmpOp,
+            right: Expr,
+        },
+        Boolean(Expr),
+    }
+
+    impl syn::parse::Parse for CustomExpr {
+        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+            let lookahead = input.lookahead1();
+            if lookahead.peek(all) {
+                let _: syn::token::Tilde;
+                let content;
+                Ok(CustomExpr::All {
+                    all_token: input.parse()?,
+                    paren_token: parenthesized!(content in input),
+                    args: content.parse_terminated(Self::parse, Token![,])?,
+                })
+            } else if lookahead.peek(any) {
+                let content;
+                Ok(CustomExpr::Any {
+                    any_token: input.parse()?,
+                    paren_token: parenthesized!(content in input),
+                    args: content.parse_terminated(Self::parse, Token![,])?,
+                })
+            } else {
+                let expr = input.parse()?;
+                let lookahead = input.lookahead1();
+
+                match expr {
+                    Expr::Binary(ExprBinary {
+                        attrs: _,
+                        left,
+                        op:
+                            op @ (BinOp::Eq(_)
+                            | BinOp::Ne(_)
+                            | BinOp::Ge(_)
+                            | BinOp::Le(_)
+                            | BinOp::Gt(_)
+                            | BinOp::Lt(_)),
+
+                        right,
+                    }) => match op {
+                        BinOp::Eq(op) => Ok(CustomExpr::Cmp {
+                            left: *left,
+                            op: CmpOp::Eq(op),
+                            right: *right,
+                        }),
+                        BinOp::Ne(op) => Ok(CustomExpr::Cmp {
+                            left: *left,
+                            op: CmpOp::Ne(op),
+                            right: *right,
+                        }),
+                        BinOp::Ge(op) => Ok(CustomExpr::Cmp {
+                            left: *left,
+                            op: CmpOp::Ge(op),
+                            right: *right,
+                        }),
+                        BinOp::Le(op) => Ok(CustomExpr::Cmp {
+                            left: *left,
+                            op: CmpOp::Le(op),
+                            right: *right,
+                        }),
+                        BinOp::Gt(op) => Ok(CustomExpr::Cmp {
+                            left: *left,
+                            op: CmpOp::Gt(op),
+                            right: *right,
+                        }),
+                        BinOp::Lt(op) => Ok(CustomExpr::Cmp {
+                            left: *left,
+                            op: CmpOp::Lt(op),
+                            right: *right,
+                        }),
+                        _ => unreachable!(),
+                    },
+                    expr => {
+                        if lookahead.peek(Token![~]) {
+                            let left = expr;
+                            let op = CmpOp::Approx(input.parse()?);
+                            let right: Expr = input.parse()?;
+                            return Ok(CustomExpr::Cmp { left, op, right });
+                        }
+
+                        if lookahead.peek(Token![:]) {
+                            let left = expr;
+                            let op = CmpOp::Custom(input.parse()?, input.parse()?, input.parse()?);
+                            let right = input.parse()?;
+                            return Ok(CustomExpr::Cmp { left, op, right });
+                        };
+
+                        Ok(CustomExpr::Boolean(expr))
+                    }
+                }
+            }
+        }
+    }
+}
 
 struct Operand {
     placeholder_id: Ident,
-    expr: Expr,
+    diagnostic_expr: TokenStream,
 }
 
 enum AssertExpr {
     BoolExpr(Operand),
-    EqExpr(Operand, Operand),
-    NeExpr(Operand, Operand),
-    LtExpr(Operand, Operand),
-    LeExpr(Operand, Operand),
-    GtExpr(Operand, Operand),
-    GeExpr(Operand, Operand),
+    CmpExpr {
+        custom: bool,
+        cmp: Operand,
+        left: Operand,
+        right: Operand,
+    },
     AndExpr(Box<(AssertExpr, AssertExpr)>),
     OrExpr(Box<(AssertExpr, AssertExpr)>),
 }
@@ -83,206 +158,98 @@ enum AssertExpr {
 struct Code {
     assert_expr: TokenStream,
     source: TokenStream,
-    debug: TokenStream,
+    source_type: TokenStream,
+    debug_lhs: TokenStream,
+    debug_rhs: TokenStream,
+    debug_cmp: TokenStream,
 }
 
 impl AssertExpr {
-    fn code(&self, crate_name: syn::Path) -> Code {
+    fn code(&self, crate_name: &Path) -> Code {
         match self {
             AssertExpr::BoolExpr(Operand {
                 placeholder_id,
-                expr,
+                diagnostic_expr: expr,
             }) => Code {
-                assert_expr: quote! { *#placeholder_id },
+                assert_expr: quote! { (#placeholder_id).0.0.0 },
                 source: quote! { ::core::stringify!(#expr) },
-                debug: quote! { *#placeholder_id },
+                source_type: quote! { &'static ::core::primitive::str },
+                debug_lhs: quote! { () },
+                debug_rhs: quote! { () },
+                debug_cmp: quote! { #placeholder_id.0.0.0 },
             },
-            AssertExpr::EqExpr(
-                Operand {
-                    placeholder_id: left_placeholder_id,
-                    expr: left_expr,
-                },
-                Operand {
-                    placeholder_id: right_placeholder_id,
-                    expr: right_expr,
-                },
-            ) => Code {
-                assert_expr: quote! {
-                    #crate_name::atomic::EqExpr {
-                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
-                    }
-                },
-                source: quote! {
-                    #crate_name::atomic::EqExpr {
-                        lhs: ::core::stringify!(#left_expr),
-                        rhs: ::core::stringify!(#right_expr),
-                    }
-                },
-                debug: quote! {
-                    #crate_name::atomic::EqExpr {
-                        lhs: (#left_placeholder_id) as *const _ as *const (),
-                        rhs: (#right_placeholder_id) as *const _ as *const (),
-                    }
-                },
-            },
-            AssertExpr::NeExpr(
-                Operand {
-                    placeholder_id: left_placeholder_id,
-                    expr: left_expr,
-                },
-                Operand {
-                    placeholder_id: right_placeholder_id,
-                    expr: right_expr,
-                },
-            ) => Code {
-                assert_expr: quote! {
-                    #crate_name::atomic::NeExpr {
-                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
-                    }
-                },
-                source: quote! {
-                    #crate_name::atomic::NeExpr {
-                        lhs: ::core::stringify!(#left_expr),
-                        rhs: ::core::stringify!(#right_expr),
-                    }
-                },
-                debug: quote! {
-                    #crate_name::atomic::NeExpr {
-                        lhs: (#left_placeholder_id) as *const _ as *const (),
-                        rhs: (#right_placeholder_id) as *const _ as *const (),
-                    }
-                },
-            },
-            AssertExpr::LtExpr(
-                Operand {
-                    placeholder_id: left_placeholder_id,
-                    expr: left_expr,
-                },
-                Operand {
-                    placeholder_id: right_placeholder_id,
-                    expr: right_expr,
-                },
-            ) => Code {
-                assert_expr: quote! {
-                    #crate_name::atomic::LtExpr {
-                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
-                    }
-                },
-                source: quote! {
-                    #crate_name::atomic::LtExpr {
-                        lhs: ::core::stringify!(#left_expr),
-                        rhs: ::core::stringify!(#right_expr),
-                    }
-                },
-                debug: quote! {
-                    #crate_name::atomic::LtExpr {
-                        lhs: (#left_placeholder_id) as *const _ as *const (),
-                        rhs: (#right_placeholder_id) as *const _ as *const (),
-                    }
-                },
-            },
-            AssertExpr::LeExpr(
-                Operand {
-                    placeholder_id: left_placeholder_id,
-                    expr: left_expr,
-                },
-                Operand {
-                    placeholder_id: right_placeholder_id,
-                    expr: right_expr,
-                },
-            ) => Code {
-                assert_expr: quote! {
-                    #crate_name::atomic::LeExpr {
-                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
-                    }
-                },
-                source: quote! {
-                    #crate_name::atomic::LeExpr {
-                        lhs: ::core::stringify!(#left_expr),
-                        rhs: ::core::stringify!(#right_expr),
-                    }
-                },
-                debug: quote! {
-                    #crate_name::atomic::LeExpr {
-                        lhs: (#left_placeholder_id) as *const _ as *const (),
-                        rhs: (#right_placeholder_id) as *const _ as *const (),
-                    }
-                },
-            },
-            AssertExpr::GtExpr(
-                Operand {
-                    placeholder_id: left_placeholder_id,
-                    expr: left_expr,
-                },
-                Operand {
-                    placeholder_id: right_placeholder_id,
-                    expr: right_expr,
-                },
-            ) => Code {
-                assert_expr: quote! {
-                    #crate_name::atomic::GtExpr {
-                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
-                    }
-                },
-                source: quote! {
-                    #crate_name::atomic::GtExpr {
-                        lhs: ::core::stringify!(#left_expr),
-                        rhs: ::core::stringify!(#right_expr),
-                    }
-                },
-                debug: quote! {
-                    #crate_name::atomic::GtExpr {
-                        lhs: (#left_placeholder_id) as *const _ as *const (),
-                        rhs: (#right_placeholder_id) as *const _ as *const (),
-                    }
-                },
-            },
-            AssertExpr::GeExpr(
-                Operand {
-                    placeholder_id: left_placeholder_id,
-                    expr: left_expr,
-                },
-                Operand {
-                    placeholder_id: right_placeholder_id,
-                    expr: right_expr,
-                },
-            ) => Code {
-                assert_expr: quote! {
-                    #crate_name::atomic::GeExpr {
-                        lhs: (& &#crate_name::Wrapper(#left_placeholder_id)).wrap().do_wrap(#left_placeholder_id),
-                        rhs: (& &#crate_name::Wrapper(#right_placeholder_id)).wrap().do_wrap(#right_placeholder_id),
-                    }
-                },
-                source: quote! {
-                    #crate_name::atomic::GeExpr {
-                        lhs: ::core::stringify!(#left_expr),
-                        rhs: ::core::stringify!(#right_expr),
-                    }
-                },
-                debug: quote! {
-                    #crate_name::atomic::GeExpr {
-                        lhs: (#left_placeholder_id) as *const _ as *const (),
-                        rhs: (#right_placeholder_id) as *const _ as *const (),
-                    }
-                },
-            },
+            AssertExpr::CmpExpr {
+                custom,
+                cmp:
+                    Operand {
+                        placeholder_id: cmp_placeholder_id,
+                        diagnostic_expr: _,
+                    },
+                left:
+                    Operand {
+                        placeholder_id: left_placeholder_id,
+                        diagnostic_expr: left_expr,
+                    },
+                right:
+                    Operand {
+                        placeholder_id: right_placeholder_id,
+                        diagnostic_expr: right_expr,
+                    },
+            } => {
+                let name = if *custom {
+                    quote! { CustomCmpExpr }
+                } else {
+                    quote! { CmpExpr }
+                };
+                Code {
+                    assert_expr: quote! {
+                        #crate_name::expr::#name {
+                            cmp: #cmp_placeholder_id,
+                            lhs: #left_placeholder_id,
+                            rhs: #right_placeholder_id,
+                        }
+                    },
+                    source: quote! {
+                        #crate_name::expr::#name {
+                            cmp: (),
+                            lhs: #left_expr,
+                            rhs: #right_expr,
+                        }
+                    },
+                    source_type: quote! {
+                        #crate_name::expr::#name<
+                            (),
+                            &'static ::core::primitive::str,
+                            &'static ::core::primitive::str,
+                        >
+                    },
+                    debug_lhs: quote! { (#left_placeholder_id).get_ptr() },
+                    debug_rhs: quote! { (#right_placeholder_id).get_ptr() },
+                    debug_cmp: if *custom {
+                        quote! { ::core::ptr::from_ref(&(#cmp_placeholder_id).0.0.0) as *const () }
+                    } else {
+                        quote! { () }
+                    },
+                }
+            }
             AssertExpr::AndExpr(inner) => {
                 let (left, right) = &**inner;
                 let Code {
                     assert_expr: left_assert_expr,
                     source: left_source,
-                    debug: left_debug,
-                } = left.code(crate_name.clone());
+                    source_type: left_source_type,
+                    debug_lhs: left_debug_lhs,
+                    debug_rhs: left_debug_rhs,
+                    debug_cmp: left_debug_cmp,
+                } = left.code(crate_name);
                 let Code {
                     assert_expr: right_assert_expr,
                     source: right_source,
-                    debug: right_debug,
-                } = right.code(crate_name.clone());
+                    source_type: right_source_type,
+                    debug_lhs: right_debug_lhs,
+                    debug_rhs: right_debug_rhs,
+                    debug_cmp: right_debug_cmp,
+                } = right.code(crate_name);
                 Code {
                     assert_expr: quote! {
                         #crate_name::expr::AndExpr {
@@ -296,10 +263,25 @@ impl AssertExpr {
                             rhs: (#right_source),
                         }
                     },
-                    debug: quote! {
+                    source_type: quote! {
+                        #crate_name::expr::AndExpr<#left_source_type, #right_source_type>
+                    },
+                    debug_lhs: quote! {
                         #crate_name::expr::AndExpr {
-                            lhs: (#left_debug),
-                            rhs: (#right_debug),
+                            lhs: (#left_debug_lhs),
+                            rhs: (#right_debug_lhs),
+                        }
+                    },
+                    debug_rhs: quote! {
+                        #crate_name::expr::AndExpr {
+                            lhs: (#left_debug_rhs),
+                            rhs: (#right_debug_rhs),
+                        }
+                    },
+                    debug_cmp: quote! {
+                        #crate_name::expr::AndExpr {
+                            lhs: (#left_debug_cmp),
+                            rhs: (#right_debug_cmp),
                         }
                     },
                 }
@@ -309,13 +291,19 @@ impl AssertExpr {
                 let Code {
                     assert_expr: left_assert_expr,
                     source: left_source,
-                    debug: left_debug,
-                } = left.code(crate_name.clone());
+                    source_type: left_source_type,
+                    debug_lhs: left_debug_lhs,
+                    debug_rhs: left_debug_rhs,
+                    debug_cmp: left_debug_cmp,
+                } = left.code(crate_name);
                 let Code {
                     assert_expr: right_assert_expr,
                     source: right_source,
-                    debug: right_debug,
-                } = right.code(crate_name.clone());
+                    source_type: right_source_type,
+                    debug_lhs: right_debug_lhs,
+                    debug_rhs: right_debug_rhs,
+                    debug_cmp: right_debug_cmp,
+                } = right.code(crate_name);
                 Code {
                     assert_expr: quote! {
                         #crate_name::expr::OrExpr {
@@ -329,10 +317,25 @@ impl AssertExpr {
                             rhs: (#right_source),
                         }
                     },
-                    debug: quote! {
-                        #crate_name::expr::OrExpr {
-                            lhs: (#left_debug),
-                            rhs: (#right_debug),
+                    source_type: quote! {
+                        #crate_name::expr::OrExpr<#left_source_type, #right_source_type>
+                    },
+                    debug_lhs: quote! {
+                        #crate_name::expr::AndExpr {
+                            lhs: (#left_debug_lhs),
+                            rhs: (#right_debug_lhs),
+                        }
+                    },
+                    debug_rhs: quote! {
+                        #crate_name::expr::AndExpr {
+                            lhs: (#left_debug_rhs),
+                            rhs: (#right_debug_rhs),
+                        }
+                    },
+                    debug_cmp: quote! {
+                        #crate_name::expr::AndExpr {
+                            lhs: (#left_debug_cmp),
+                            rhs: (#right_debug_cmp),
                         }
                     },
                 }
@@ -342,28 +345,29 @@ impl AssertExpr {
 }
 
 fn usize_to_ident(idx: usize) -> Ident {
-    Ident::new(&format!("__{idx}"), Span::call_site())
+    Ident::new(&format!("__operand_{idx}"), Span::call_site())
+}
+
+fn cmp_usize_to_ident(idx: usize) -> Ident {
+    Ident::new(&format!("__cmp_{idx}"), Span::call_site())
 }
 
 fn handle_expr(
+    crate_name: &Path,
     atomics: &mut Vec<Expr>,
+    cmp_atomics: &mut Vec<Expr>,
     diagnostics: &mut Vec<TokenStream>,
     mut placeholder_id: usize,
-    expr: Expr,
-) -> (usize, AssertExpr) {
+    mut cmp_placeholder_id: usize,
+    expr: CustomExpr,
+) -> (AssertExpr, usize, usize) {
     match expr {
-        Expr::Call(expr)
-            if match &*expr.func {
-                Expr::Path(path) => {
-                    path.path
-                        .get_ident()
-                        .map(|ident| ident.to_string() == "all")
-                        == Some(true)
-                }
-                _ => false,
-            } =>
-        {
-            let mut args = expr.args.into_iter().collect::<Vec<_>>();
+        CustomExpr::All {
+            all_token: _,
+            paren_token: _,
+            args,
+        } => {
+            let mut args = args.into_iter().collect::<Vec<_>>();
             if args.is_empty() {
                 let expr = Expr::Lit(ExprLit {
                     attrs: Vec::new(),
@@ -372,39 +376,49 @@ fn handle_expr(
                         span: Span::call_site(),
                     }),
                 });
-                atomics.push(expr.clone());
+                let diagnostic_expr = quote! { ::core::stringify!(#expr) };
+                atomics.push(expr);
                 (
-                    placeholder_id + 1,
                     AssertExpr::BoolExpr(Operand {
                         placeholder_id: usize_to_ident(placeholder_id),
-                        expr,
+                        diagnostic_expr,
                     }),
+                    placeholder_id + 1,
+                    cmp_placeholder_id,
                 )
             } else {
                 let mut assert_expr;
                 let mut arg_expr;
-                (placeholder_id, assert_expr) =
-                    handle_expr(atomics, diagnostics, placeholder_id, args.pop().unwrap());
+                (assert_expr, placeholder_id, cmp_placeholder_id) = handle_expr(
+                    crate_name,
+                    atomics,
+                    cmp_atomics,
+                    diagnostics,
+                    placeholder_id,
+                    cmp_placeholder_id,
+                    args.pop().unwrap(),
+                );
                 while let Some(arg) = args.pop() {
-                    (placeholder_id, arg_expr) =
-                        handle_expr(atomics, diagnostics, placeholder_id, arg);
+                    (arg_expr, placeholder_id, cmp_placeholder_id) = handle_expr(
+                        crate_name,
+                        atomics,
+                        cmp_atomics,
+                        diagnostics,
+                        placeholder_id,
+                        cmp_placeholder_id,
+                        arg,
+                    );
                     assert_expr = AssertExpr::AndExpr(Box::new((arg_expr, assert_expr)));
                 }
-                (placeholder_id, assert_expr)
+                (assert_expr, placeholder_id, cmp_placeholder_id)
             }
         }
-        Expr::Call(expr)
-            if match &*expr.func {
-                Expr::Path(path) => {
-                    path.path
-                        .get_ident()
-                        .map(|ident| ident.to_string() == "any")
-                        == Some(true)
-                }
-                _ => false,
-            } =>
-        {
-            let mut args = expr.args.into_iter().collect::<Vec<_>>();
+        CustomExpr::Any {
+            any_token: _,
+            paren_token: _,
+            args,
+        } => {
+            let mut args = args.into_iter().collect::<Vec<_>>();
             if args.is_empty() {
                 let expr = Expr::Lit(ExprLit {
                     attrs: Vec::new(),
@@ -413,198 +427,264 @@ fn handle_expr(
                         span: Span::call_site(),
                     }),
                 });
-                atomics.push(expr.clone());
+                let diagnostic_expr = quote! { ::core::stringify!(#expr) };
+                atomics.push(expr);
                 (
-                    placeholder_id + 1,
                     AssertExpr::BoolExpr(Operand {
                         placeholder_id: usize_to_ident(placeholder_id),
-                        expr,
+                        diagnostic_expr,
                     }),
+                    placeholder_id + 1,
+                    cmp_placeholder_id,
                 )
             } else {
                 let mut assert_expr;
                 let mut arg_expr;
-                (placeholder_id, assert_expr) =
-                    handle_expr(atomics, diagnostics, placeholder_id, args.pop().unwrap());
+                (assert_expr, placeholder_id, cmp_placeholder_id) = handle_expr(
+                    crate_name,
+                    atomics,
+                    cmp_atomics,
+                    diagnostics,
+                    placeholder_id,
+                    cmp_placeholder_id,
+                    args.pop().unwrap(),
+                );
                 while let Some(arg) = args.pop() {
-                    (placeholder_id, arg_expr) =
-                        handle_expr(atomics, diagnostics, placeholder_id, arg);
+                    (arg_expr, placeholder_id, cmp_placeholder_id) = handle_expr(
+                        crate_name,
+                        atomics,
+                        cmp_atomics,
+                        diagnostics,
+                        placeholder_id,
+                        cmp_placeholder_id,
+                        arg,
+                    );
                     assert_expr = AssertExpr::OrExpr(Box::new((arg_expr, assert_expr)));
                 }
-                (placeholder_id, assert_expr)
+                (assert_expr, placeholder_id, cmp_placeholder_id)
             }
         }
-        Expr::Binary(ExprBinary {
+        CustomExpr::Cmp {
             left,
             right,
-            op: BinOp::Eq(_),
-            ..
-        }) => (
-            {
-                let lhs = usize_to_ident(placeholder_id);
-                let rhs = usize_to_ident(placeholder_id + 1);
-                diagnostics.push(quote! { #lhs == #rhs });
-                atomics.push((*left).clone());
-                atomics.push((*right).clone());
-                placeholder_id + 2
-            },
-            AssertExpr::EqExpr(
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id),
-                    expr: *left,
-                },
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id + 1),
-                    expr: *right,
-                },
-            ),
-        ),
-
-        Expr::Binary(ExprBinary {
+            op: CmpOp::Custom(_, cmp, _),
+        } => handle_cmp(
+            true,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |crate_name, cmp, lhs, rhs| quote! { #crate_name::Cmp::test(#cmp, #lhs, #rhs) },
+            placeholder_id,
+            cmp_placeholder_id,
             left,
             right,
-            op: BinOp::Ne(_),
-            ..
-        }) => (
-            {
-                let lhs = usize_to_ident(placeholder_id);
-                let rhs = usize_to_ident(placeholder_id + 1);
-                diagnostics.push(quote! { #lhs != #rhs });
-                atomics.push((*left).clone());
-                atomics.push((*right).clone());
-                placeholder_id + 2
-            },
-            AssertExpr::NeExpr(
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id),
-                    expr: *left,
-                },
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id + 1),
-                    expr: *right,
-                },
-            ),
+            cmp,
         ),
-        Expr::Binary(ExprBinary {
+        CustomExpr::Cmp {
             left,
             right,
-            op: BinOp::Lt(_),
-            ..
-        }) => (
-            {
-                let lhs = usize_to_ident(placeholder_id);
-                let rhs = usize_to_ident(placeholder_id + 1);
-                diagnostics.push(quote! { #lhs < #rhs });
-                atomics.push((*left).clone());
-                atomics.push((*right).clone());
-                placeholder_id + 2
-            },
-            AssertExpr::LtExpr(
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id),
-                    expr: *left,
-                },
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id + 1),
-                    expr: *right,
-                },
-            ),
-        ),
-        Expr::Binary(ExprBinary {
+            op: CmpOp::Approx(op),
+        } => handle_cmp(
+            true,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |crate_name, cmp, lhs, rhs| quote! { #crate_name::Cmp::test(#cmp, #lhs, #rhs) },
+            placeholder_id,
+            cmp_placeholder_id,
             left,
             right,
-            op: BinOp::Le(_),
-            ..
-        }) => (
-            {
-                let lhs = usize_to_ident(placeholder_id);
-                let rhs = usize_to_ident(placeholder_id + 1);
-                diagnostics.push(quote! { #lhs <= #rhs });
-                atomics.push((*left).clone());
-                atomics.push((*right).clone());
-                placeholder_id + 2
-            },
-            AssertExpr::LeExpr(
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id),
-                    expr: *left,
-                },
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id + 1),
-                    expr: *right,
-                },
-            ),
+            Expr::Path(ExprPath {
+                attrs: vec![],
+                qself: None,
+                path: Ident::new("approx_eq", op.spans[0]).into(),
+            }),
         ),
-        Expr::Binary(ExprBinary {
+        CustomExpr::Cmp {
             left,
             right,
-            op: BinOp::Gt(_),
-            ..
-        }) => (
-            {
-                let lhs = usize_to_ident(placeholder_id);
-                let rhs = usize_to_ident(placeholder_id + 1);
-                diagnostics.push(quote! { #lhs > #rhs });
-                atomics.push((*left).clone());
-                atomics.push((*right).clone());
-                placeholder_id + 2
-            },
-            AssertExpr::GtExpr(
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id),
-                    expr: *left,
-                },
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id + 1),
-                    expr: *right,
-                },
-            ),
-        ),
-        Expr::Binary(ExprBinary {
+            op: CmpOp::Eq(_),
+        } => handle_cmp(
+            false,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |_, _, lhs, rhs| quote! { #lhs == #rhs },
+            placeholder_id,
+            cmp_placeholder_id,
             left,
             right,
-            op: BinOp::Ge(_),
-            ..
-        }) => (
-            {
-                let lhs = usize_to_ident(placeholder_id);
-                let rhs = usize_to_ident(placeholder_id + 1);
-                diagnostics.push(quote! { #lhs >= #rhs });
-                atomics.push((*left).clone());
-                atomics.push((*right).clone());
-                placeholder_id + 2
-            },
-            AssertExpr::GeExpr(
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id),
-                    expr: *left,
-                },
-                Operand {
-                    placeholder_id: usize_to_ident(placeholder_id + 1),
-                    expr: *right,
-                },
-            ),
+            make_cmp(crate_name, "Eq"),
         ),
-        expr => (
+        CustomExpr::Cmp {
+            left,
+            right,
+            op: CmpOp::Ne(_),
+        } => handle_cmp(
+            false,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |_, _, lhs, rhs| quote! { #lhs != #rhs },
+            placeholder_id,
+            cmp_placeholder_id,
+            left,
+            right,
+            make_cmp(crate_name, "Ne"),
+        ),
+        CustomExpr::Cmp {
+            left,
+            right,
+            op: CmpOp::Lt(_),
+        } => handle_cmp(
+            false,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |_, _, lhs, rhs| quote! { #lhs < #rhs },
+            placeholder_id,
+            cmp_placeholder_id,
+            left,
+            right,
+            make_cmp(crate_name, "Lt"),
+        ),
+        CustomExpr::Cmp {
+            left,
+            right,
+            op: CmpOp::Gt(_),
+        } => handle_cmp(
+            false,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |_, _, lhs, rhs| quote! { #lhs > #rhs },
+            placeholder_id,
+            cmp_placeholder_id,
+            left,
+            right,
+            make_cmp(crate_name, "Gt"),
+        ),
+        CustomExpr::Cmp {
+            left,
+            right,
+            op: CmpOp::Le(_),
+        } => handle_cmp(
+            false,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |_, _, lhs, rhs| quote! { #lhs <= #rhs },
+            placeholder_id,
+            cmp_placeholder_id,
+            left,
+            right,
+            make_cmp(crate_name, "Le"),
+        ),
+        CustomExpr::Cmp {
+            left,
+            right,
+            op: CmpOp::Ge(_),
+        } => handle_cmp(
+            false,
+            crate_name,
+            atomics,
+            cmp_atomics,
+            diagnostics,
+            |_, _, lhs, rhs| quote! { #lhs >= #rhs },
+            placeholder_id,
+            cmp_placeholder_id,
+            left,
+            right,
+            make_cmp(crate_name, "Ge"),
+        ),
+        CustomExpr::Boolean(expr) => (
+            AssertExpr::BoolExpr(Operand {
+                placeholder_id: usize_to_ident(placeholder_id),
+                diagnostic_expr: quote! { ::core::stringify!(#expr) },
+            }),
             {
                 let val = usize_to_ident(placeholder_id);
                 diagnostics.push(quote! { *#val });
-                atomics.push(expr.clone());
+                atomics.push(expr);
                 placeholder_id + 1
             },
-            AssertExpr::BoolExpr(Operand {
-                placeholder_id: usize_to_ident(placeholder_id),
-                expr,
-            }),
+            cmp_placeholder_id,
         ),
     }
+}
+
+fn make_cmp(crate_name: &Path, name: &str) -> Expr {
+    let span = crate_name.span();
+    let mut path = crate_name.clone();
+    path.segments.push_punct(Token![::](crate_name.span()));
+    path.segments.push_value(PathSegment {
+        ident: Ident::new(name, span),
+        arguments: PathArguments::None,
+    });
+    Expr::Path(ExprPath {
+        attrs: vec![],
+        qself: None,
+        path,
+    })
+}
+
+fn handle_cmp(
+    custom: bool,
+    crate_name: &Path,
+    atomics: &mut Vec<Expr>,
+    cmp_atomics: &mut Vec<Expr>,
+    diagnostics: &mut Vec<TokenStream>,
+    diagnose: fn(crate_name: &Path, cmp: Ident, lhs: Ident, rhs: Ident) -> TokenStream,
+    placeholder_id: usize,
+    cmp_placeholder_id: usize,
+    left: Expr,
+    right: Expr,
+    cmp: Expr,
+) -> (AssertExpr, usize, usize) {
+    (
+        AssertExpr::CmpExpr {
+            custom,
+            cmp: Operand {
+                placeholder_id: cmp_usize_to_ident(cmp_placeholder_id),
+                diagnostic_expr: quote! {},
+            },
+            left: Operand {
+                placeholder_id: usize_to_ident(placeholder_id),
+                diagnostic_expr: quote! { ::core::stringify!(#left) },
+            },
+            right: Operand {
+                placeholder_id: usize_to_ident(placeholder_id + 1),
+                diagnostic_expr: quote! { ::core::stringify!(#right) },
+            },
+        },
+        {
+            {
+                let cmp = cmp_usize_to_ident(cmp_placeholder_id);
+                let lhs = usize_to_ident(placeholder_id);
+                let rhs = usize_to_ident(placeholder_id + 1);
+                diagnostics.push(diagnose(crate_name, cmp, lhs, rhs));
+            }
+            cmp_atomics.push(cmp);
+            atomics.push(left);
+            atomics.push(right);
+            placeholder_id + 2
+        },
+        cmp_placeholder_id + 1,
+    )
 }
 
 type FormatArgs = syn::punctuated::Punctuated<syn::Expr, syn::token::Comma>;
 
 struct Args {
-    crate_name: syn::Path,
-    expr: syn::Expr,
+    crate_name: Path,
+    expr: CustomExpr,
     format_args: Option<FormatArgs>,
 }
 
@@ -631,127 +711,97 @@ impl syn::parse::Parse for Args {
 
 #[proc_macro]
 pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let item: TokenStream = item.into();
-    let Ok(input) = parse2::<Args>(item) else {
-        return quote! {
-            ::core::compile_error!("invalid arguments");
-        }
-        .into();
-    };
+    let input = syn::parse_macro_input!(item as Args);
 
-    let crate_name = input.crate_name;
-    let args = input
-        .format_args
-        .map(|punc| punc.into_iter().collect())
-        .unwrap_or(Vec::new());
+    let crate_name = &input.crate_name;
+    let args = input.format_args;
     let body = input.expr;
 
     let mut atomics = Vec::new();
+    let mut cmp_atomics = Vec::new();
     let mut diagnostics = Vec::new();
-    let assert_expr = handle_expr(&mut atomics, &mut diagnostics, 0, body.clone()).1;
+    let assert_expr = handle_expr(
+        crate_name,
+        &mut atomics,
+        &mut cmp_atomics,
+        &mut diagnostics,
+        0,
+        0,
+        body.clone(),
+    )
+    .0;
     let atomics = atomics;
-    let placeholders = atomics
+    let cmp_atomics = cmp_atomics;
+    let placeholders = &*atomics
         .iter()
         .enumerate()
-        .map(|(idx, _)| Ident::new(&format!("__{idx}"), Span::call_site()));
+        .map(|(idx, _)| Ident::new(&format!("__operand_{idx}"), Span::call_site()))
+        .collect::<Vec<_>>();
+
+    let cmp_placeholders = &*cmp_atomics
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| Ident::new(&format!("__cmp_{idx}"), Span::call_site()))
+        .collect::<Vec<_>>();
 
     let Code {
         assert_expr,
         source,
-        debug,
-    } = assert_expr.code(crate_name.clone());
+        source_type,
+        debug_cmp,
+        debug_lhs,
+        debug_rhs,
+    } = assert_expr.code(crate_name);
 
-    let outer_block = if args.is_empty() {
+    let message = match args {
+        Some(args) => quote! { #crate_name::Message(#args) },
+        None => quote! { #crate_name::NoMessage },
+    };
+
+    let outer_block = {
         quote! {
-            match (#(&(#atomics),)*) {
-                (#(#placeholders,)*) => {
+            match (#(&(#atomics),)* #(&(#cmp_atomics),)*) {
+                (#(#placeholders,)* #(#cmp_placeholders,)*) => {
                     if false {
                         #(let _: bool = #diagnostics;)*
                     }
-                    use #crate_name::Expr;
-                    use #crate_name::TryDebugWrap;
+                    use #crate_name::spec::debug::TryDebugWrap;
+                    use #crate_name::spec::sized::TrySizedWrap;
+                    use #crate_name::spec::by_val::TryByValWrap;
+                    use #crate_name::traits::Expr;
 
-                    let __assert_expr = #crate_name::Finalize {
-                        expr: #assert_expr,
-                        line: (),
-                        col: (),
-                        file: (),
+                    #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_debug().do_wrap(#placeholders);)*
+                    #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_sized().do_wrap(#placeholders);)*
+                    #(let #placeholders = (#placeholders).get();)*
+                    #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_by_val().do_wrap(#placeholders);)*
+
+                    #(let #cmp_placeholders = #crate_name::spec::debug::CmpDebugWrapper(#cmp_placeholders);)*
+                    #(let #cmp_placeholders = #crate_name::spec::sized::CmpSizedWrapper(#cmp_placeholders);)*
+                    #(let #cmp_placeholders = #crate_name::spec::by_val::CmpByValWrapper::from_ref(#cmp_placeholders);)*
+
+                    let __assert_expr = #crate_name::structures::Finalize {
+                        inner: #assert_expr,
                     };
 
                     if !(&&&__assert_expr).eval_expr() {
-                        let __assert_message = #crate_name::DebugMessage {
-                            result: (&&&__assert_expr).result(),
-                            source: &#crate_name::Finalize {
-                                expr: #source,
+                        struct Source<'a, V>(&'a V);
+                        impl<V: #crate_name::traits::DynInfo> #crate_name::traits::DynInfo for Source<'_, V> {
+                            type VTable = #crate_name::structures::WithSource<#source_type, &'static V::VTable>;
+                            const VTABLE: &'static Self::VTable = &#crate_name::structures::WithSource {
+                                source: #source,
+                                file: ::core::file!(),
                                 line: ::core::line!(),
                                 col: ::core::column!(),
-                                file: ::core::file!(),
-                            },
-                            vtable: #crate_name::vtable_for(&__assert_expr),
-                            debug: &#crate_name::Finalize {
-                                expr: #debug,
-                                line: (),
-                                col: (),
-                                file: (),
-                            },
-                            message: ::core::format_args!(""),
-                        };
-                        let __marker = #crate_name::marker(&__assert_message);
-                        #crate_name::panic_failed_assert(
-                            __marker,
-                            __assert_message.result,
-                            __assert_message.source,
-                            __assert_message.vtable,
-                            __assert_message.debug,
-                            );
-                    }
-                }
-            }
-        }
-    } else {
-        quote! {
-            match (#(&(#atomics),)* ::core::format_args!(#(#args,)*)) {
-                (#(#placeholders,)* __message) => {
-                    if false {
-                        #(let _: bool = #diagnostics;)*
-                    }
+                                vtable: V::VTABLE,
+                            };
+                        }
 
-                    use #crate_name::Expr;
-                    use #crate_name::TryDebugWrap;
-
-                    let __assert_expr = #crate_name::Finalize {
-                        expr: #assert_expr,
-                        line: (),
-                        col: (),
-                        file: (),
-                    };
-
-                    if !(&&&__assert_expr).eval_expr() {
-                        let __assert_message = #crate_name::DebugMessage {
-                            result: (&&&__assert_expr).result(),
-                            source: &#crate_name::Finalize {
-                                expr: #source,
-                                line: ::core::line!(),
-                                col: ::core::column!(),
-                                file: ::core::file!(),
-                            },
-                            vtable: #crate_name::vtable_for(&__assert_expr),
-                            debug: &#crate_name::Finalize {
-                                expr: #debug,
-                                line: (),
-                                col: (),
-                                file: (),
-                            },
-                            message: __message,
-                        };
-                        let __marker = #crate_name::marker(&__assert_message);
-                        #crate_name::panic_failed_assert_with_message(
-                            __marker,
-                            __assert_message.message,
-                            __assert_message.result,
-                            __assert_message.source,
-                            __assert_message.vtable,
-                            __assert_message.debug,
+                        #crate_name::panic_failed_assert::<_, <#source_type as #crate_name::decompose::Decompose>::Decomposed>(
+                            #debug_lhs,
+                            #debug_rhs,
+                            #debug_cmp,
+                            #crate_name::vtable_for(&Source(&__assert_expr)),
+                            #message,
                         );
                     }
                 }
