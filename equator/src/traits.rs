@@ -111,25 +111,50 @@ impl<Lhs: Expr, Rhs: Expr> Expr for expr::OrExpr<Lhs, Rhs> {
     }
 }
 
-pub trait DynInfo {
+pub trait DynInfoType {
     type VTable: Copy + 'static;
-    const VTABLE: &'static Self::VTable;
+    const NULL_VTABLE: &'static Self::VTable;
 }
 
-impl DynInfo for bool {
+pub trait DynInfo: DynInfoType {
+    const VTABLE: &'static Self::VTable;
+
+    #[inline(always)]
+    fn vtable(&self) -> &'static Self::VTable {
+        Self::VTABLE
+    }
+}
+
+impl DynInfoType for bool {
     type VTable = ();
+    const NULL_VTABLE: &'static Self::VTable = &();
+}
+impl DynInfo for bool {
     const VTABLE: &'static Self::VTable = &();
 }
 
-impl<Lhs: DynInfo, Rhs: DynInfo> DynInfo for expr::AndExpr<Lhs, Rhs> {
+impl<Lhs: DynInfoType, Rhs: DynInfoType> DynInfoType for expr::AndExpr<Lhs, Rhs> {
     type VTable = expr::AndExpr<&'static Lhs::VTable, &'static Rhs::VTable>;
+    const NULL_VTABLE: &'static Self::VTable = &expr::AndExpr {
+        lhs: Lhs::NULL_VTABLE,
+        rhs: Rhs::NULL_VTABLE,
+    };
+}
+impl<Lhs: DynInfoType, Rhs: DynInfoType> DynInfoType for expr::OrExpr<Lhs, Rhs> {
+    type VTable = expr::OrExpr<&'static Lhs::VTable, &'static Rhs::VTable>;
+    const NULL_VTABLE: &'static Self::VTable = &expr::OrExpr {
+        lhs: Lhs::NULL_VTABLE,
+        rhs: Rhs::NULL_VTABLE,
+    };
+}
+
+impl<Lhs: DynInfo, Rhs: DynInfo> DynInfo for expr::AndExpr<Lhs, Rhs> {
     const VTABLE: &'static Self::VTable = &expr::AndExpr {
         lhs: Lhs::VTABLE,
         rhs: Rhs::VTABLE,
     };
 }
 impl<Lhs: DynInfo, Rhs: DynInfo> DynInfo for expr::OrExpr<Lhs, Rhs> {
-    type VTable = expr::OrExpr<&'static Lhs::VTable, &'static Rhs::VTable>;
     const VTABLE: &'static Self::VTable = &expr::OrExpr {
         lhs: Lhs::VTABLE,
         rhs: Rhs::VTABLE,
@@ -153,14 +178,39 @@ unsafe fn as_cmp_vptr<Lhs, Rhs, C: Cmp<Lhs, Rhs>>(
     cmp.test(lhs, rhs)
 }
 
+impl<C: DisplayCmp, Lhs: DebugVTable + DerefVTable, Rhs: DebugVTable + DerefVTable> DynInfoType
+    for expr::CmpExpr<&CmpByValWrapper<C>, Lhs, Rhs>
+{
+    type VTable =
+        expr::CmpExpr<(PtrToDisplay, PtrToCmp), (PtrToDebug, PtrToDeref), (PtrToDebug, PtrToDeref)>;
+    const NULL_VTABLE: &'static Self::VTable = &expr::CmpExpr {
+        cmp: (as_display_vptr::<C>, as_cmp_vptr::<(), (), crate::Eq>),
+        lhs: (<Lhs as DebugVTable>::VTABLE, <Lhs as DerefVTable>::VTABLE),
+        rhs: (<Rhs as DebugVTable>::VTABLE, <Rhs as DerefVTable>::VTABLE),
+    };
+}
+
+impl<C: DisplayCmp, Lhs: DebugVTable + DerefVTable, Rhs: DebugVTable + DerefVTable> DynInfoType
+    for expr::CustomCmpExpr<&CmpByValWrapper<C>, Lhs, Rhs>
+{
+    type VTable = expr::CustomCmpExpr<
+        (PtrToDisplay, PtrToCmp),
+        (PtrToDebug, PtrToDeref),
+        (PtrToDebug, PtrToDeref),
+    >;
+    const NULL_VTABLE: &'static Self::VTable = &expr::CustomCmpExpr {
+        cmp: (as_display_vptr::<C>, as_cmp_vptr::<usize, usize, crate::Eq>),
+        lhs: (<Lhs as DebugVTable>::VTABLE, <Lhs as DerefVTable>::VTABLE),
+        rhs: (<Rhs as DebugVTable>::VTABLE, <Rhs as DerefVTable>::VTABLE),
+    };
+}
+
 impl<
         C: DisplayCmp + Cmp<Lhs::Inner, Rhs::Inner>,
         Lhs: DebugVTable + DerefVTable,
         Rhs: DebugVTable + DerefVTable,
     > DynInfo for expr::CmpExpr<&CmpByValWrapper<C>, Lhs, Rhs>
 {
-    type VTable =
-        expr::CmpExpr<(PtrToDisplay, PtrToCmp), (PtrToDebug, PtrToDeref), (PtrToDebug, PtrToDeref)>;
     const VTABLE: &'static Self::VTable = &expr::CmpExpr {
         cmp: (
             as_display_vptr::<C>,
@@ -177,11 +227,6 @@ impl<
         Rhs: DebugVTable + DerefVTable,
     > DynInfo for expr::CustomCmpExpr<&CmpByValWrapper<C>, Lhs, Rhs>
 {
-    type VTable = expr::CustomCmpExpr<
-        (PtrToDisplay, PtrToCmp),
-        (PtrToDebug, PtrToDeref),
-        (PtrToDebug, PtrToDeref),
-    >;
     const VTABLE: &'static Self::VTable = &expr::CustomCmpExpr {
         cmp: (
             as_display_vptr::<C>,

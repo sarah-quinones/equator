@@ -1,10 +1,6 @@
 use crate::{
     decompose::{PtrToDebug, PtrToDeref},
-    spec::{
-        debug::{CmpDebugWrapper, DebugWrapper},
-        sized::{CmpSizedWrapper, SizedWrapper},
-        Wrapper,
-    },
+    spec::{debug::CmpDebugWrapper, sized::CmpSizedWrapper, Wrapper},
     Cmp, DisplayCmp,
 };
 use core::fmt;
@@ -39,15 +35,20 @@ impl<T> ByRef<T> {
 }
 
 impl<T: Copy> ByVal<T> {
+    const FIT_IN_PTR: bool = core::mem::size_of::<T>() <= core::mem::size_of::<*const ()>()
+        && core::mem::align_of::<T>() <= core::mem::align_of::<*const ()>();
+
     #[inline(always)]
-    pub fn get_ptr(self) -> *const () {
-        core::assert!(core::mem::size_of::<T>() <= core::mem::size_of::<*const ()>());
-        core::assert!(core::mem::align_of::<T>() <= core::mem::align_of::<*const ()>());
-        let mut out = core::ptr::null::<()>();
-        unsafe {
-            *((&mut out) as *mut *const () as *mut T) = self.0;
-        };
-        out
+    pub fn get_ptr(&self) -> *const () {
+        if Self::FIT_IN_PTR {
+            let mut out = core::ptr::null::<()>();
+            unsafe {
+                *((&mut out) as *mut *const () as *mut T) = self.0;
+            };
+            out
+        } else {
+            self as *const _ as *const ()
+        }
     }
 }
 
@@ -58,21 +59,21 @@ impl<C: DisplayCmp> DisplayCmp for CmpByValWrapper<C> {
     }
 }
 
-impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<ByVal<Lhs>, ByVal<Rhs>> for CmpByValWrapper<C> {
+impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<&ByVal<Lhs>, &ByVal<Rhs>> for CmpByValWrapper<C> {
     #[inline(always)]
-    fn test(&self, lhs: &ByVal<Lhs>, rhs: &ByVal<Rhs>) -> bool {
+    fn test(&self, lhs: &&ByVal<Lhs>, rhs: &&ByVal<Rhs>) -> bool {
         self.0.test(&lhs.0, &rhs.0)
     }
 }
-impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<&ByRef<Lhs>, ByVal<Rhs>> for CmpByValWrapper<C> {
+impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<&ByRef<Lhs>, &ByVal<Rhs>> for CmpByValWrapper<C> {
     #[inline(always)]
-    fn test(&self, lhs: &&ByRef<Lhs>, rhs: &ByVal<Rhs>) -> bool {
+    fn test(&self, lhs: &&ByRef<Lhs>, rhs: &&ByVal<Rhs>) -> bool {
         self.0.test(&lhs.0, &rhs.0)
     }
 }
-impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<ByVal<Lhs>, &ByRef<Rhs>> for CmpByValWrapper<C> {
+impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<&ByVal<Lhs>, &ByRef<Rhs>> for CmpByValWrapper<C> {
     #[inline(always)]
-    fn test(&self, lhs: &ByVal<Lhs>, rhs: &&ByRef<Rhs>) -> bool {
+    fn test(&self, lhs: &&ByVal<Lhs>, rhs: &&ByRef<Rhs>) -> bool {
         self.0.test(&lhs.0, &rhs.0)
     }
 }
@@ -85,8 +86,8 @@ impl<Lhs, Rhs, C: Cmp<Lhs, Rhs>> Cmp<&ByRef<Lhs>, &ByRef<Rhs>> for CmpByValWrapp
 
 impl ByValWrap {
     #[inline(always)]
-    pub fn do_wrap<T: Copy>(self, value: &T) -> ByVal<T> {
-        ByVal(*value)
+    pub fn do_wrap<T: Copy>(self, value: &T) -> &ByVal<T> {
+        unsafe { &*(value as *const T as *const _) }
     }
 }
 impl ByRefWrap {
@@ -96,13 +97,16 @@ impl ByRefWrap {
     }
 }
 
-impl<C> CmpByValWrapper<CmpSizedWrapper<CmpDebugWrapper<C>>> {
+impl<'a, C> CmpByValWrapper<CmpSizedWrapper<CmpDebugWrapper<&'a C>>> {
     #[inline(always)]
-    pub fn from_ref(this: CmpSizedWrapper<CmpDebugWrapper<&C>>) -> &Self {
-        unsafe { &*(this.0 .0 as *const C as *const Self) }
+    pub fn __wrap_ref(self) -> &'a CmpByValWrapper<CmpSizedWrapper<CmpDebugWrapper<C>>> {
+        unsafe {
+            &*(self.0 .0 .0 as *const C
+                as *const CmpByValWrapper<CmpSizedWrapper<CmpDebugWrapper<C>>>)
+        }
     }
 }
-impl TryByValWrap for &Wrapper<&SizedWrapper<DebugWrapper<usize>>> {
+impl<T: Copy> TryByValWrap for &Wrapper<&T> {
     type Wrap = ByValWrap;
 
     #[inline]
@@ -146,16 +150,22 @@ unsafe fn deref(ptr: *const *const ()) -> *const () {
     *ptr
 }
 
-impl<T> DerefVTable for ByVal<T> {
+impl<T: Copy> DerefVTable for &ByVal<T> {
     type Inner = T;
-    const VTABLE: PtrToDeref = { no_deref };
+    const VTABLE: PtrToDeref = {
+        if ByVal::<T>::FIT_IN_PTR {
+            no_deref
+        } else {
+            deref
+        }
+    };
 }
 impl<T> DerefVTable for &ByRef<T> {
     type Inner = T;
     const VTABLE: PtrToDeref = { deref };
 }
 
-impl<T: fmt::Debug> DebugVTable for ByVal<T> {
+impl<T: fmt::Debug> DebugVTable for &ByVal<T> {
     const VTABLE: PtrToDebug = as_debug_vptr::<T>;
 }
 impl<T: fmt::Debug> DebugVTable for &ByRef<T> {

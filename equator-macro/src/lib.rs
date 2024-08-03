@@ -777,7 +777,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                     #(let #cmp_placeholders = #crate_name::spec::debug::CmpDebugWrapper(#cmp_placeholders);)*
                     #(let #cmp_placeholders = #crate_name::spec::sized::CmpSizedWrapper(#cmp_placeholders);)*
-                    #(let #cmp_placeholders = #crate_name::spec::by_val::CmpByValWrapper::from_ref(#cmp_placeholders);)*
+                    #(let #cmp_placeholders = #crate_name::spec::by_val::CmpByValWrapper(#cmp_placeholders).__wrap_ref();)*
 
                     let __assert_expr = #crate_name::structures::Finalize {
                         inner: #assert_expr,
@@ -785,8 +785,17 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                     if !(&&&__assert_expr).eval_expr() {
                         struct Source<'a, V>(&'a V);
-                        impl<V: #crate_name::traits::DynInfo> #crate_name::traits::DynInfo for Source<'_, V> {
+                        impl<V: #crate_name::traits::DynInfoType> #crate_name::traits::DynInfoType for &Source<'_, V> {
                             type VTable = #crate_name::structures::WithSource<#source_type, &'static V::VTable>;
+                            const NULL_VTABLE: &'static Self::VTable = &#crate_name::structures::WithSource {
+                                source: #source,
+                                file: ::core::file!(),
+                                line: ::core::line!(),
+                                col: ::core::column!(),
+                                vtable: V::NULL_VTABLE,
+                            };
+                        }
+                        impl<V: #crate_name::traits::DynInfo> #crate_name::traits::DynInfo for &Source<'_, V> {
                             const VTABLE: &'static Self::VTable = &#crate_name::structures::WithSource {
                                 source: #source,
                                 file: ::core::file!(),
@@ -795,12 +804,22 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 vtable: V::VTABLE,
                             };
                         }
+                        impl<V: #crate_name::traits::DynInfoType> #crate_name::traits::DynInfoType for Source<'_, V> {
+                            type VTable = #crate_name::structures::WithSource<#source_type, &'static V::VTable>;
+                            const NULL_VTABLE: &'static Self::VTable = <&Source::<'_, V> as #crate_name::traits::DynInfoType>::NULL_VTABLE;
+                        }
+                        impl<V: #crate_name::traits::DynInfoType> #crate_name::traits::DynInfo for Source<'_, V> {
+                            const VTABLE: &'static Self::VTable = <Self as #crate_name::traits::DynInfoType>::NULL_VTABLE;
+                        }
 
                         #crate_name::panic_failed_assert::<_, <#source_type as #crate_name::decompose::Decompose>::Decomposed>(
                             #debug_lhs,
                             #debug_rhs,
                             #debug_cmp,
-                            #crate_name::vtable_for(&Source(&__assert_expr)),
+                            {
+                                use #crate_name::traits::DynInfo;
+                                (&&Source(&__assert_expr)).vtable()
+                            },
                             #message,
                         );
                     }

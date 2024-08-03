@@ -2,114 +2,41 @@ use core::hint::black_box;
 use equator::assert;
 use std::collections::HashMap;
 
-#[inline(never)]
-#[track_caller]
-pub fn test_asm_2(a: usize, b: usize, c: usize, d: usize) {
-    assert!(all(a == b, c == d));
-}
-
-#[inline(never)]
-#[track_caller]
-pub fn test_asm_3(a: usize, b: usize, c: usize, d: usize) {
-    assert!(all(a + 1 == b - 3, c + 4 == d - 4));
-}
-
-#[inline(never)]
-#[track_caller]
-pub fn test_std_asm_1(a: usize, b: usize) {
-    std::assert_eq!(a, b);
-}
-
-#[inline(never)]
-#[track_caller]
-pub fn test_std_asm_2(a: usize, b: usize, c: usize, d: usize) {
-    std::assert_eq!(a, b);
-    std::assert_eq!(c, d);
-}
-
-#[inline(never)]
-#[track_caller]
-pub fn test_std_asm_3(a: usize, b: usize, c: usize, d: usize) {
-    std::assert_eq!(a + 1, b - 3);
-    std::assert_eq!(c + 4, d - 4);
-}
-
-#[inline(never)]
-#[track_caller]
-pub fn test_assert2_asm_1(a: usize, b: usize) {
-    assert2::assert!(a == b);
-}
-
-#[inline(never)]
-#[track_caller]
-pub fn test_assert2_asm_2(a: usize, b: usize, c: usize, d: usize) {
-    assert2::assert!(a == b);
-    assert2::assert!(c == d);
-}
-
 #[test]
 #[should_panic]
 pub fn test() {
+    black_box(test_asm_1_med as fn(_, _));
+    black_box(test_asm_2_smol as fn(_, _, _, _));
+    black_box(test_asm_2_med as fn(_, _, _, _));
+    black_box(test_asm_2_big as fn(_, _, _, _));
+
+    black_box(test_std_asm_1_med as fn(_, _));
+    black_box(test_std_asm_2_smol as fn(_, _, _, _));
+    black_box(test_std_asm_2_med as fn(_, _, _, _));
+    black_box(test_std_asm_2_big as fn(_, _, _, _));
+
+    black_box(test_assert2_asm_1_med as fn(_, _));
+    black_box(test_assert2_asm_2_smol as fn(_, _, _, _));
+    black_box(test_assert2_asm_2_med as fn(_, _, _, _));
+    black_box(test_assert2_asm_2_big as fn(_, _, _, _));
+
     let x = 3;
     let y = 2;
     let z = true;
-    if black_box(true) {
-        assert!(all(true == false, x < y, any(!z, z)));
-        assert!(all(true == false, x + 1 < y, any(!z, z)));
-    }
 
-    black_box(test_asm_1(black_box(2), black_box(4)));
-    black_box(test_asm_2(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
-    black_box(test_asm_3(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
-    black_box(test_std_asm_1(black_box(2), black_box(4)));
-    black_box(test_std_asm_2(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
-    black_box(test_std_asm_3(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
+    assert!(all(true == false, x < y, any(!z, z)));
+    assert!(all(true == false, x + 1 < y, any(!z, z)));
 }
 
 #[test]
 #[should_panic]
 pub fn test_asm() {
-    black_box(test_asm_1(black_box(2), black_box(4)));
-    black_box(test_asm_2(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
-    black_box(test_std_asm_1(black_box(2), black_box(4)));
-    black_box(test_std_asm_2(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
-    black_box(test_assert2_asm_1(black_box(2), black_box(4)));
-    black_box(test_assert2_asm_2(
-        black_box(3),
-        black_box(5),
-        black_box(6),
-        black_box(7),
-    ));
+    test_asm_1_med(2, 4);
+    test_asm_2_med(3, 5, 6, 7);
+    test_std_asm_1_med(2, 4);
+    test_std_asm_2_med(3, 5, 6, 7);
+    test_assert2_asm_1_med(2, 4);
+    test_assert2_asm_2_med(3, 5, 6, 7);
 }
 
 #[test]
@@ -178,7 +105,76 @@ pub fn test_move() {
 }
 
 #[inline(never)]
-#[track_caller]
-pub fn test_asm_1(a: usize, b: usize) {
+pub fn test_asm_1_med(a: usize, b: usize) {
     assert!(a == b);
+}
+
+#[inline(never)]
+pub fn test_asm_2_smol(a: u8, b: u8, c: u8, d: u8) {
+    assert!([a, c] == [b, d]);
+}
+
+#[inline(never)]
+pub fn test_asm_2_med(a: usize, b: usize, c: usize, d: usize) {
+    assert!(all(a == b, c == d));
+}
+
+#[inline(never)]
+pub fn test_asm_2_big(a: usize, b: usize, c: usize, d: usize) {
+    assert!([a, c] == [b, d]);
+}
+
+#[inline(never)]
+pub fn test_std_asm_2_smol(a: u8, b: u8, c: u8, d: u8) {
+    std::assert_eq!([a, c], [b, d]);
+}
+
+#[inline(never)]
+pub fn test_std_asm_2_med(a: usize, b: usize, c: usize, d: usize) {
+    std::assert_eq!(a, b);
+    std::assert_eq!(c, d);
+}
+
+#[inline(never)]
+pub fn test_std_asm_2_big(a: usize, b: usize, c: usize, d: usize) {
+    std::assert_eq!([a, c], [b, d]);
+}
+
+#[inline(never)]
+pub fn test_assert2_asm_2_smol(a: u8, b: u8, c: u8, d: u8) {
+    assert2::assert!([a, c] == [b, d]);
+}
+
+#[inline(never)]
+pub fn test_assert2_asm_2_med(a: usize, b: usize, c: usize, d: usize) {
+    assert2::assert!(a == b);
+    assert2::assert!(c == d);
+}
+
+#[inline(never)]
+pub fn test_assert2_asm_2_big(a: usize, b: usize, c: usize, d: usize) {
+    assert2::assert!([a, c] == [b, d]);
+}
+
+#[inline(never)]
+pub fn test_std_asm_1_med(a: usize, b: usize) {
+    std::assert_eq!(a, b);
+}
+
+#[inline(never)]
+pub fn test_assert2_asm_1_med(a: usize, b: usize) {
+    assert2::assert!(a == b);
+}
+
+#[test]
+#[should_panic]
+pub fn test_big_fail() {
+    let x = [core::ptr::null::<()>(); 2];
+    assert!(x != x);
+}
+
+#[test]
+pub fn test_big() {
+    let x = [core::ptr::null::<()>(); 2];
+    assert!(x == x);
 }

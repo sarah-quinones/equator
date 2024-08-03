@@ -1,6 +1,6 @@
 use crate::{
     decompose,
-    traits::{DynInfo, Expr},
+    traits::{DynInfo, DynInfoType, Expr},
 };
 use core::fmt;
 
@@ -46,8 +46,12 @@ pub struct Finalize<E> {
     pub inner: E,
 }
 
-impl<E: DynInfo> DynInfo for Finalize<E> {
+impl<E: DynInfoType> DynInfoType for Finalize<E> {
     type VTable = E::VTable;
+    const NULL_VTABLE: &'static Self::VTable = E::NULL_VTABLE;
+}
+
+impl<E: DynInfo> DynInfo for Finalize<E> {
     const VTABLE: &'static Self::VTable = E::VTABLE;
 }
 
