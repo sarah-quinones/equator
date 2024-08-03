@@ -226,7 +226,7 @@ impl AssertExpr {
                     debug_lhs: quote! { (#left_placeholder_id).get_ptr() },
                     debug_rhs: quote! { (#right_placeholder_id).get_ptr() },
                     debug_cmp: if *custom {
-                        quote! { ::core::ptr::from_ref(&(#cmp_placeholder_id).0.0.0) as *const () }
+                        quote! { (&(#cmp_placeholder_id).0.0.0) as *const _ as *const () }
                     } else {
                         quote! { () }
                     },
