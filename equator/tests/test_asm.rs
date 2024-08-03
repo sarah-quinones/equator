@@ -173,6 +173,7 @@ pub fn test_move() {
     let ref mut m = HashMap::<usize, Vec<()>>::new();
     let x = vec![];
     assert!(*x == []);
+    assert!(*x == [], "oops {x:?}");
     assert!(m.insert(0, x).is_none());
 }
 

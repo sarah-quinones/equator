@@ -166,7 +166,7 @@ pub struct AndExpr<L, R>(L, R);
 pub struct OrExpr<L, R>(L, R);
 
 #[doc(hidden)]
-pub struct Message<'a>(core::fmt::Arguments<'a>);
+pub struct Message<'a>(pub core::fmt::Arguments<'a>);
 #[doc(hidden)]
 pub struct NoMessage;
 

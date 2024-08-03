@@ -754,7 +754,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     } = assert_expr.code(crate_name);
 
     let message = match args {
-        Some(args) => quote! { #crate_name::Message(#args) },
+        Some(args) => quote! { #crate_name::Message(::core::format_args!(#args)) },
         None => quote! { #crate_name::NoMessage },
     };
 
