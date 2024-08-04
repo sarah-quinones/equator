@@ -159,7 +159,6 @@ struct Code {
     assert_expr: TokenStream,
     source: TokenStream,
     source_type: TokenStream,
-    prologue: TokenStream,
     debug_lhs: TokenStream,
     debug_rhs: TokenStream,
     debug_cmp: TokenStream,
@@ -175,7 +174,6 @@ impl AssertExpr {
                 assert_expr: quote! { (#placeholder_id).0.0.0 },
                 source: quote! { ::core::stringify!(#expr) },
                 source_type: quote! { &'static ::core::primitive::str },
-                prologue: quote! {},
                 debug_lhs: quote! { () },
                 debug_rhs: quote! { () },
                 debug_cmp: quote! { #placeholder_id.0.0.0 },
@@ -225,14 +223,6 @@ impl AssertExpr {
                             &'static ::core::primitive::str,
                         >
                     },
-                    prologue: if *custom {
-                        quote! {}
-                    } else {
-                        quote! {
-                            let #left_placeholder_id = #crate_name::Single::from_ref(#left_placeholder_id);
-                            let #right_placeholder_id = #crate_name::Single::from_ref(#right_placeholder_id);
-                        }
-                    },
                     debug_lhs: quote! { (#left_placeholder_id).get_ptr() },
                     debug_rhs: quote! { (#right_placeholder_id).get_ptr() },
                     debug_cmp: if *custom {
@@ -248,7 +238,6 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     source_type: left_source_type,
-                    prologue: left_prologue,
                     debug_lhs: left_debug_lhs,
                     debug_rhs: left_debug_rhs,
                     debug_cmp: left_debug_cmp,
@@ -257,7 +246,6 @@ impl AssertExpr {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     source_type: right_source_type,
-                    prologue: right_prologue,
                     debug_lhs: right_debug_lhs,
                     debug_rhs: right_debug_rhs,
                     debug_cmp: right_debug_cmp,
@@ -277,9 +265,6 @@ impl AssertExpr {
                     },
                     source_type: quote! {
                         #crate_name::expr::AndExpr<#left_source_type, #right_source_type>
-                    },
-                    prologue: quote! {
-                        #left_prologue #right_prologue
                     },
                     debug_lhs: quote! {
                         #crate_name::expr::AndExpr {
@@ -307,7 +292,6 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     source_type: left_source_type,
-                    prologue: left_prologue,
                     debug_lhs: left_debug_lhs,
                     debug_rhs: left_debug_rhs,
                     debug_cmp: left_debug_cmp,
@@ -316,7 +300,6 @@ impl AssertExpr {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     source_type: right_source_type,
-                    prologue: right_prologue,
                     debug_lhs: right_debug_lhs,
                     debug_rhs: right_debug_rhs,
                     debug_cmp: right_debug_cmp,
@@ -336,9 +319,6 @@ impl AssertExpr {
                     },
                     source_type: quote! {
                         #crate_name::expr::OrExpr<#left_source_type, #right_source_type>
-                    },
-                    prologue: quote! {
-                        #left_prologue #right_prologue
                     },
                     debug_lhs: quote! {
                         #crate_name::expr::OrExpr {
@@ -768,7 +748,6 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         assert_expr,
         source,
         source_type,
-        prologue,
         debug_cmp,
         debug_lhs,
         debug_rhs,
@@ -791,7 +770,6 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     use #crate_name::spec::by_val::TryByValWrap;
                     use #crate_name::traits::Expr;
 
-                    #prologue
                     #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_debug().do_wrap(#placeholders);)*
                     #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_sized().do_wrap(#placeholders);)*
                     #(let #placeholders = (#placeholders).get();)*

@@ -1,11 +1,11 @@
-use crate::{CmpDisplay, Single};
+use crate::CmpDisplay;
 use core::fmt;
 
 pub mod by_val;
 pub mod debug;
 pub mod sized;
 
-impl<C, E: CmpDisplay<C, Single<dyn fmt::Debug>, Single<dyn fmt::Debug>>>
+impl<C, E: CmpDisplay<C, dyn fmt::Debug, dyn fmt::Debug>>
     CmpDisplay<
         by_val::CmpByValWrapper<sized::CmpSizedWrapper<debug::CmpDebugWrapper<C>>>,
         dyn fmt::Debug + 'static,
@@ -25,10 +25,10 @@ impl<C, E: CmpDisplay<C, Single<dyn fmt::Debug>, Single<dyn fmt::Debug>>>
     ) -> fmt::Result {
         self.0 .0 .0.fmt(
             &cmp.0 .0 .0,
-            Single::from_ref(lhs),
+            lhs,
             lhs_source,
             lhs_debug,
-            Single::from_ref(rhs),
+            rhs,
             rhs_source,
             rhs_debug,
             f,

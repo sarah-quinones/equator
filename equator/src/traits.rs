@@ -3,7 +3,7 @@ use crate::{
     expr, spec,
     spec::by_val::{ByVal, DerefVTable},
     spec::Wrapper,
-    Cmp, CmpDisplay, CmpError, Single,
+    Cmp, CmpDisplay, CmpError,
 };
 use core::fmt;
 
@@ -308,7 +308,7 @@ impl<
         &Rhs3,
     >
 where
-    C::Error: CmpDisplay<C, Single<dyn fmt::Debug>, Single<dyn fmt::Debug>>,
+    C::Error: CmpDisplay<C, dyn fmt::Debug, dyn fmt::Debug>,
 {
     type VTable =
         expr::CmpExpr<(PtrToDisplay, PtrToCmp), (PtrToDebug, PtrToDeref), (PtrToDebug, PtrToDeref)>;
@@ -322,11 +322,7 @@ where
                     spec::sized::CmpSizedWrapper<spec::debug::CmpDebugWrapper<C::Error>>,
                 >,
             >,
-            as_cmp_vptr::<
-                ByVal<ByVal<crate::Single<()>>>,
-                ByVal<ByVal<crate::Single<()>>>,
-                crate::Eq,
-            >,
+            as_cmp_vptr::<ByVal<ByVal<()>>, ByVal<ByVal<()>>, crate::Eq>,
         ),
         lhs: (as_debug_vptr::<Lhs3>, Lhs3::VTABLE),
         rhs: (as_debug_vptr::<Rhs3>, Rhs3::VTABLE),
@@ -371,11 +367,7 @@ where
                     spec::sized::CmpSizedWrapper<spec::debug::CmpDebugWrapper<C::Error>>,
                 >,
             >,
-            as_cmp_vptr::<
-                ByVal<ByVal<crate::Single<()>>>,
-                ByVal<ByVal<crate::Single<()>>>,
-                crate::Eq,
-            >,
+            as_cmp_vptr::<ByVal<ByVal<()>>, ByVal<ByVal<()>>, crate::Eq>,
         ),
         lhs: (as_debug_vptr::<Lhs3>, Lhs3::VTABLE),
         rhs: (as_debug_vptr::<Rhs3>, Rhs3::VTABLE),
@@ -401,7 +393,7 @@ impl<
         &Rhs3,
     >
 where
-    C::Error: CmpDisplay<C, Single<dyn fmt::Debug>, Single<dyn fmt::Debug>>,
+    C::Error: CmpDisplay<C, dyn fmt::Debug, dyn fmt::Debug>,
 {
     const VTABLE: &'static Self::VTable = &expr::CmpExpr {
         cmp: (
