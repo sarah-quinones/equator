@@ -159,7 +159,6 @@ struct Code {
     assert_expr: TokenStream,
     source: TokenStream,
     source_type: TokenStream,
-    decomposed: TokenStream,
     prologue: TokenStream,
     debug_lhs: TokenStream,
     debug_rhs: TokenStream,
@@ -176,7 +175,6 @@ impl AssertExpr {
                 assert_expr: quote! { (#placeholder_id).0.0.0 },
                 source: quote! { ::core::stringify!(#expr) },
                 source_type: quote! { &'static ::core::primitive::str },
-                decomposed: quote! { bool },
                 prologue: quote! {},
                 debug_lhs: quote! { () },
                 debug_rhs: quote! { () },
@@ -227,11 +225,6 @@ impl AssertExpr {
                             &'static ::core::primitive::str,
                         >
                     },
-                    decomposed: if *custom {
-                        quote! { #crate_name::CustomCmpExpr<_> }
-                    } else {
-                        quote! { #crate_name::CmpExpr }
-                    },
                     prologue: if *custom {
                         quote! {}
                     } else {
@@ -255,7 +248,6 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     source_type: left_source_type,
-                    decomposed: left_decomposed,
                     prologue: left_prologue,
                     debug_lhs: left_debug_lhs,
                     debug_rhs: left_debug_rhs,
@@ -265,7 +257,6 @@ impl AssertExpr {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     source_type: right_source_type,
-                    decomposed: right_decomposed,
                     prologue: right_prologue,
                     debug_lhs: right_debug_lhs,
                     debug_rhs: right_debug_rhs,
@@ -286,9 +277,6 @@ impl AssertExpr {
                     },
                     source_type: quote! {
                         #crate_name::expr::AndExpr<#left_source_type, #right_source_type>
-                    },
-                    decomposed: quote! {
-                        #crate_name::AndExpr<#left_decomposed, #right_decomposed>
                     },
                     prologue: quote! {
                         #left_prologue #right_prologue
@@ -319,7 +307,6 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     source_type: left_source_type,
-                    decomposed: left_decomposed,
                     prologue: left_prologue,
                     debug_lhs: left_debug_lhs,
                     debug_rhs: left_debug_rhs,
@@ -329,7 +316,6 @@ impl AssertExpr {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     source_type: right_source_type,
-                    decomposed: right_decomposed,
                     prologue: right_prologue,
                     debug_lhs: right_debug_lhs,
                     debug_rhs: right_debug_rhs,
@@ -350,9 +336,6 @@ impl AssertExpr {
                     },
                     source_type: quote! {
                         #crate_name::expr::OrExpr<#left_source_type, #right_source_type>
-                    },
-                    decomposed: quote! {
-                        #crate_name::OrExpr<#left_decomposed, #right_decomposed>
                     },
                     prologue: quote! {
                         #left_prologue #right_prologue
@@ -549,7 +532,7 @@ fn handle_expr(
             atomics,
             cmp_atomics,
             diagnostics,
-            |_, _, lhs, rhs| quote! { #lhs == #rhs },
+            |_, _, lhs, rhs| quote! { *(#lhs) == *(#rhs) },
             placeholder_id,
             cmp_placeholder_id,
             left,
@@ -566,7 +549,7 @@ fn handle_expr(
             atomics,
             cmp_atomics,
             diagnostics,
-            |_, _, lhs, rhs| quote! { #lhs != #rhs },
+            |_, _, lhs, rhs| quote! { *(#lhs) != *(#rhs) },
             placeholder_id,
             cmp_placeholder_id,
             left,
@@ -583,7 +566,7 @@ fn handle_expr(
             atomics,
             cmp_atomics,
             diagnostics,
-            |_, _, lhs, rhs| quote! { #lhs < #rhs },
+            |_, _, lhs, rhs| quote! { *(#lhs) < *(#rhs) },
             placeholder_id,
             cmp_placeholder_id,
             left,
@@ -600,7 +583,7 @@ fn handle_expr(
             atomics,
             cmp_atomics,
             diagnostics,
-            |_, _, lhs, rhs| quote! { #lhs > #rhs },
+            |_, _, lhs, rhs| quote! { *(#lhs) > *(#rhs) },
             placeholder_id,
             cmp_placeholder_id,
             left,
@@ -617,7 +600,7 @@ fn handle_expr(
             atomics,
             cmp_atomics,
             diagnostics,
-            |_, _, lhs, rhs| quote! { #lhs <= #rhs },
+            |_, _, lhs, rhs| quote! { *(#lhs) <= *(#rhs) },
             placeholder_id,
             cmp_placeholder_id,
             left,
@@ -634,7 +617,7 @@ fn handle_expr(
             atomics,
             cmp_atomics,
             diagnostics,
-            |_, _, lhs, rhs| quote! { #lhs >= #rhs },
+            |_, _, lhs, rhs| quote! { *(#lhs) >= *(#rhs) },
             placeholder_id,
             cmp_placeholder_id,
             left,
@@ -785,7 +768,6 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         assert_expr,
         source,
         source_type,
-        decomposed,
         prologue,
         debug_cmp,
         debug_lhs,
@@ -844,19 +826,25 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 vtable: V::VTABLE,
                             };
                         }
-                        impl<V: #crate_name::traits::DynInfoType> #crate_name::traits::DynInfoType for Source<'_, V> {
-                            type VTable = #crate_name::structures::WithSource<#source_type, &'static V::VTable>;
-                            const NULL_VTABLE: &'static Self::VTable = <&Source::<'_, V> as #crate_name::traits::DynInfoType>::NULL_VTABLE;
+                        impl<V> #crate_name::traits::DynInfoType for Source<'_, V> {
+                            type VTable = #crate_name::structures::WithSource<&'static str, &'static ()>;
+                            const NULL_VTABLE: &'static Self::VTable = &#crate_name::structures::WithSource {
+                                source: "",
+                                file: ::core::file!(),
+                                line: ::core::line!(),
+                                col: ::core::column!(),
+                                vtable: &(),
+                            };
                         }
-                        impl<V: #crate_name::traits::DynInfoType> #crate_name::traits::DynInfo for Source<'_, V> {
+                        impl<V> #crate_name::traits::DynInfo for Source<'_, V> {
                             const VTABLE: &'static Self::VTable = <Self as #crate_name::traits::DynInfoType>::NULL_VTABLE;
                         }
 
-                        #crate_name::panic_failed_assert::<_, #decomposed>(
+                        #crate_name::panic_failed_assert(
                             (&&&__assert_expr).__marker(),
-                            #debug_lhs,
-                            #debug_rhs,
-                            #debug_cmp,
+                            unsafe { ::core::mem::transmute(#debug_lhs) },
+                            unsafe { ::core::mem::transmute(#debug_rhs) },
+                            unsafe { ::core::mem::transmute(#debug_cmp) },
                             {
                                 use #crate_name::traits::DynInfo;
                                 (&&Source(&__assert_expr)).vtable()

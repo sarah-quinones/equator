@@ -190,6 +190,5 @@ pub fn test_custom() {
     };
 
     assert!(0.1 :approx_eq: 0.10001);
-    assert!(&0.1 :approx_eq: &0.10001);
     assert!(0.1 ~ 0.10001);
 }

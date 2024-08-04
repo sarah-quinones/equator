@@ -3,12 +3,12 @@
 use core::fmt;
 
 #[doc(hidden)]
-pub use equator_macro::assert as __assert_impl;
+pub use equator_macro as imp;
 
 #[macro_export]
 macro_rules! assert {
     ($($tokens: tt)*) => {
-        $crate::__assert_impl!($crate, $($tokens)*)
+        $crate::imp::assert!($crate, $($tokens)*)
     };
 }
 
@@ -16,7 +16,7 @@ macro_rules! assert {
 macro_rules! debug_assert {
     ($($tokens: tt)*) => {
         if cfg!(debug_assertions) {
-            $crate::__assert_impl!($crate, $($tokens)*)
+            $crate::imp::assert!($crate, $($tokens)*)
         }
     };
 }

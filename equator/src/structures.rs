@@ -55,17 +55,15 @@ impl<E: DynInfo> DynInfo for Finalize<E> {
     const VTABLE: &'static Self::VTable = E::VTABLE;
 }
 
-// impl<E> Expr for &Finalize<E> {
-//     type Result<'a> = Result<(), ()> where Self: 'a;
-//     type Marker<'a> = bool
-//     where
-//         Self: 'a;
+impl<E> Expr for &Finalize<E> {
+    type Result = Result<(), ()>;
+    type Marker = bool;
 
-//     #[inline(always)]
-//     fn eval_expr(&self) -> bool {
-//         core::unreachable!()
-//     }
-// }
+    #[inline(always)]
+    fn eval_expr(&self) -> bool {
+        core::unreachable!()
+    }
+}
 
 impl<E: Expr> Expr for &&Finalize<E> {
     type Result = E::Result;
