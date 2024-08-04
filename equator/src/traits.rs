@@ -3,9 +3,9 @@ use crate::{
     expr, spec,
     spec::by_val::{ByVal, DerefVTable},
     spec::Wrapper,
-    Cmp, CmpDisplay, CmpError,
+    Cmp, CmpDisplay,
 };
-use core::fmt;
+use core::{fmt, ops::Deref};
 
 pub trait Expr {
     type Result: Eval;
@@ -52,15 +52,12 @@ impl Expr for bool {
 }
 
 impl<
-        Lhs0: ?Sized,
-        Lhs1: ?Sized + core::ops::Deref<Target = Lhs0>,
-        Lhs2: core::ops::Deref<Target = Lhs1>,
-        Lhs3: core::ops::Deref<Target = Lhs2>,
-        Rhs0: ?Sized,
-        Rhs1: ?Sized + core::ops::Deref<Target = Rhs0>,
-        Rhs2: core::ops::Deref<Target = Rhs1>,
-        Rhs3: core::ops::Deref<Target = Rhs2>,
-        C: Cmp<Lhs0, Rhs0>,
+        Lhs3: Deref,
+        Rhs3: Deref,
+        C: Cmp<
+            <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+            <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        >,
     > Expr
     for expr::CmpExpr<
         &spec::by_val::CmpByValWrapper<
@@ -69,6 +66,11 @@ impl<
         &Lhs3,
         &Rhs3,
     >
+where
+    Lhs3::Target: Deref,
+    Rhs3::Target: Deref,
+    <Lhs3::Target as Deref>::Target: Deref,
+    <Rhs3::Target as Deref>::Target: Deref,
 {
     type Result = Result<(), C::Error>;
     type Marker = crate::CmpExpr;
@@ -80,15 +82,12 @@ impl<
 }
 
 impl<
-        Lhs0: ?Sized,
-        Lhs1: ?Sized + core::ops::Deref<Target = Lhs0>,
-        Lhs2: core::ops::Deref<Target = Lhs1>,
-        Lhs3: core::ops::Deref<Target = Lhs2> + fmt::Debug + DerefVTable,
-        Rhs0: ?Sized,
-        Rhs1: ?Sized + core::ops::Deref<Target = Rhs0>,
-        Rhs2: core::ops::Deref<Target = Rhs1>,
-        Rhs3: core::ops::Deref<Target = Rhs2> + fmt::Debug + DerefVTable,
-        C: Cmp<Lhs0, Rhs0>,
+        Lhs3: Deref,
+        Rhs3: Deref,
+        C: Cmp<
+            <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+            <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        >,
     > Expr
     for expr::CustomCmpExpr<
         &spec::by_val::CmpByValWrapper<
@@ -97,6 +96,11 @@ impl<
         &Lhs3,
         &Rhs3,
     >
+where
+    Lhs3::Target: Deref,
+    Rhs3::Target: Deref,
+    <Lhs3::Target as Deref>::Target: Deref,
+    <Rhs3::Target as Deref>::Target: Deref,
 {
     type Result = Result<(), C::Error>;
     type Marker = crate::CustomCmpExpr<C::Error>;
@@ -264,17 +268,17 @@ unsafe fn as_dyn_display_vptr<'a, C, E: CmpDisplay<C, dyn fmt::Debug, dyn fmt::D
 }
 
 unsafe fn as_cmp_vptr<
-    Lhs2: core::ops::Deref,
-    Rhs2: core::ops::Deref,
-    C: Cmp<<Lhs2::Target as core::ops::Deref>::Target, <Rhs2::Target as core::ops::Deref>::Target>,
+    Lhs2: Deref,
+    Rhs2: Deref,
+    C: Cmp<<Lhs2::Target as Deref>::Target, <Rhs2::Target as Deref>::Target>,
 >(
     out: *mut (),
     cmp: *const (),
     lhs: *const (),
     rhs: *const (),
 ) where
-    Lhs2::Target: core::ops::Deref,
-    Rhs2::Target: core::ops::Deref,
+    Lhs2::Target: Deref,
+    Rhs2::Target: Deref,
 {
     let out = out as *mut Result<(), C::Error>;
     let cmp = &*(cmp as *const C);
@@ -290,15 +294,12 @@ unsafe fn as_debug_vptr<T: fmt::Debug>(ptr: *const ()) -> &'static dyn fmt::Debu
 }
 
 impl<
-        Lhs0: ?Sized,
-        Lhs1: ?Sized + core::ops::Deref<Target = Lhs0>,
-        Lhs2: core::ops::Deref<Target = Lhs1>,
-        Lhs3: core::ops::Deref<Target = Lhs2> + fmt::Debug + DerefVTable,
-        Rhs0: ?Sized,
-        Rhs1: ?Sized + core::ops::Deref<Target = Rhs0>,
-        Rhs2: core::ops::Deref<Target = Rhs1>,
-        Rhs3: core::ops::Deref<Target = Rhs2> + fmt::Debug + DerefVTable,
-        C: CmpError<C, Lhs0, Rhs0>,
+        Lhs3: Deref + fmt::Debug + DerefVTable,
+        Rhs3: Deref + fmt::Debug + DerefVTable,
+        C: Cmp<
+            <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+            <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        >,
     > DynInfoType
     for expr::CmpExpr<
         &spec::by_val::CmpByValWrapper<
@@ -309,6 +310,10 @@ impl<
     >
 where
     C::Error: CmpDisplay<C, dyn fmt::Debug, dyn fmt::Debug>,
+    Lhs3::Target: Deref,
+    Rhs3::Target: Deref,
+    <Lhs3::Target as Deref>::Target: Deref,
+    <Rhs3::Target as Deref>::Target: Deref,
 {
     type VTable =
         expr::CmpExpr<(PtrToDisplay, PtrToCmp), (PtrToDebug, PtrToDeref), (PtrToDebug, PtrToDeref)>;
@@ -330,15 +335,12 @@ where
 }
 
 impl<
-        Lhs0: ?Sized,
-        Lhs1: ?Sized + core::ops::Deref<Target = Lhs0>,
-        Lhs2: core::ops::Deref<Target = Lhs1>,
-        Lhs3: core::ops::Deref<Target = Lhs2> + fmt::Debug + DerefVTable,
-        Rhs0: ?Sized,
-        Rhs1: ?Sized + core::ops::Deref<Target = Rhs0>,
-        Rhs2: core::ops::Deref<Target = Rhs1>,
-        Rhs3: core::ops::Deref<Target = Rhs2> + fmt::Debug + DerefVTable,
-        C: CmpError<C, Lhs0, Rhs0>,
+        Lhs3: Deref + fmt::Debug + DerefVTable,
+        Rhs3: Deref + fmt::Debug + DerefVTable,
+        C: Cmp<
+            <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+            <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        >,
     > DynInfoType
     for expr::CustomCmpExpr<
         &spec::by_val::CmpByValWrapper<
@@ -348,7 +350,15 @@ impl<
         &Rhs3,
     >
 where
-    C::Error: CmpDisplay<C, Lhs0, Rhs0>,
+    C::Error: CmpDisplay<
+        C,
+        <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+    >,
+    Lhs3::Target: Deref,
+    Rhs3::Target: Deref,
+    <Lhs3::Target as Deref>::Target: Deref,
+    <Rhs3::Target as Deref>::Target: Deref,
 {
     type VTable = expr::CustomCmpExpr<
         (PtrToDisplay, PtrToCmp),
@@ -375,15 +385,12 @@ where
 }
 
 impl<
-        Lhs0: ?Sized,
-        Lhs1: ?Sized + core::ops::Deref<Target = Lhs0>,
-        Lhs2: core::ops::Deref<Target = Lhs1>,
-        Lhs3: core::ops::Deref<Target = Lhs2> + fmt::Debug + DerefVTable,
-        Rhs0: ?Sized,
-        Rhs1: ?Sized + core::ops::Deref<Target = Rhs0>,
-        Rhs2: core::ops::Deref<Target = Rhs1>,
-        Rhs3: core::ops::Deref<Target = Rhs2> + fmt::Debug + DerefVTable,
-        C: Cmp<Lhs0, Rhs0>,
+        Lhs3: Deref + fmt::Debug + DerefVTable,
+        Rhs3: Deref + fmt::Debug + DerefVTable,
+        C: Cmp<
+            <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+            <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        >,
     > DynInfo
     for expr::CmpExpr<
         &spec::by_val::CmpByValWrapper<
@@ -394,6 +401,10 @@ impl<
     >
 where
     C::Error: CmpDisplay<C, dyn fmt::Debug, dyn fmt::Debug>,
+    Lhs3::Target: Sized + Deref,
+    Rhs3::Target: Sized + Deref,
+    <Lhs3::Target as Deref>::Target: Deref,
+    <Rhs3::Target as Deref>::Target: Deref,
 {
     const VTABLE: &'static Self::VTable = &expr::CmpExpr {
         cmp: (
@@ -405,7 +416,7 @@ where
                     spec::sized::CmpSizedWrapper<spec::debug::CmpDebugWrapper<C::Error>>,
                 >,
             >,
-            as_cmp_vptr::<Lhs2, Rhs2, C>,
+            as_cmp_vptr::<Lhs3::Target, Rhs3::Target, C>,
         ),
         lhs: (as_debug_vptr::<Lhs3>, Lhs3::VTABLE),
         rhs: (as_debug_vptr::<Rhs3>, Rhs3::VTABLE),
@@ -413,15 +424,12 @@ where
 }
 
 impl<
-        Lhs0: ?Sized,
-        Lhs1: ?Sized + core::ops::Deref<Target = Lhs0>,
-        Lhs2: core::ops::Deref<Target = Lhs1>,
-        Lhs3: core::ops::Deref<Target = Lhs2> + fmt::Debug + DerefVTable,
-        Rhs0: ?Sized,
-        Rhs1: ?Sized + core::ops::Deref<Target = Rhs0>,
-        Rhs2: core::ops::Deref<Target = Rhs1>,
-        Rhs3: core::ops::Deref<Target = Rhs2> + fmt::Debug + DerefVTable,
-        C: Cmp<Lhs0, Rhs0>,
+        Lhs3: Deref + fmt::Debug + DerefVTable,
+        Rhs3: Deref + fmt::Debug + DerefVTable,
+        C: Cmp<
+            <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+            <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        >,
     > DynInfo
     for expr::CustomCmpExpr<
         &spec::by_val::CmpByValWrapper<
@@ -431,7 +439,15 @@ impl<
         &Rhs3,
     >
 where
-    C::Error: CmpDisplay<C, Lhs0, Rhs0>,
+    C::Error: CmpDisplay<
+        C,
+        <<<Lhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+        <<<Rhs3 as Deref>::Target as Deref>::Target as Deref>::Target,
+    >,
+    Lhs3::Target: Sized + Deref,
+    Rhs3::Target: Sized + Deref,
+    <Lhs3::Target as Deref>::Target: Deref,
+    <Rhs3::Target as Deref>::Target: Deref,
 {
     const VTABLE: &'static Self::VTable = &expr::CustomCmpExpr {
         cmp: (
@@ -445,7 +461,7 @@ where
                     spec::sized::CmpSizedWrapper<spec::debug::CmpDebugWrapper<C::Error>>,
                 >,
             >,
-            as_cmp_vptr::<Lhs2, Rhs2, C>,
+            as_cmp_vptr::<Lhs3::Target, Rhs3::Target, C>,
         ),
         lhs: (as_debug_vptr::<Lhs3>, Lhs3::VTABLE),
         rhs: (as_debug_vptr::<Rhs3>, Rhs3::VTABLE),
