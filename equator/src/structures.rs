@@ -5,10 +5,10 @@ use crate::{
 use core::fmt;
 
 pub struct DebugMessageImpl<'a, D: decompose::Recompose> {
-    pub result: D::Result,
+    pub result: &'a D::Result,
     pub source: &'a D::Source,
-    pub debug_lhs: D::DebugLhs,
-    pub debug_rhs: D::DebugRhs,
+    pub debug_lhs: &'a D::DebugLhs,
+    pub debug_rhs: &'a D::DebugRhs,
     pub debug_cmp: D::DebugCmp,
     pub vtable: &'a D::VTable,
 }
@@ -55,30 +55,24 @@ impl<E: DynInfo> DynInfo for Finalize<E> {
     const VTABLE: &'static Self::VTable = E::VTABLE;
 }
 
-impl<E> Expr for &Finalize<E> {
-    type Result = bool;
+// impl<E> Expr for &Finalize<E> {
+//     type Result<'a> = Result<(), ()> where Self: 'a;
+//     type Marker<'a> = bool
+//     where
+//         Self: 'a;
 
-    #[inline(always)]
-    fn eval_expr(&self) -> bool {
-        unimplemented!()
-    }
-
-    #[inline(always)]
-    fn result(&self) -> Self::Result {
-        unimplemented!()
-    }
-}
+//     #[inline(always)]
+//     fn eval_expr(&self) -> bool {
+//         core::unreachable!()
+//     }
+// }
 
 impl<E: Expr> Expr for &&Finalize<E> {
     type Result = E::Result;
+    type Marker = E::Marker;
 
     #[inline(always)]
     fn eval_expr(&self) -> bool {
         self.inner.eval_expr()
-    }
-
-    #[inline(always)]
-    fn result(&self) -> Self::Result {
-        self.inner.result()
     }
 }

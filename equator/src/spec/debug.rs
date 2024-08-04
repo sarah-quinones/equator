@@ -1,4 +1,4 @@
-use crate::{spec::Wrapper, Cmp, DisplayCmp};
+use crate::{spec::Wrapper, Cmp, CmpDisplay, CmpError};
 use core::fmt;
 
 #[repr(transparent)]
@@ -8,43 +8,66 @@ pub struct DebugWrapper<T: ?Sized>(pub T);
 #[derive(Copy, Clone)]
 pub struct NoDebugWrapper<T: ?Sized>(pub T);
 
-impl<C: DisplayCmp> DisplayCmp for CmpDebugWrapper<C> {
-    #[inline(always)]
-    fn fmt(&self, lhs: &str, rhs: &str, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(lhs, rhs, f)
+impl<
+        Lhs: ?Sized + core::ops::Deref,
+        Rhs: ?Sized + core::ops::Deref,
+        C: CmpError<C, Lhs::Target, Rhs::Target>,
+    > CmpError<CmpDebugWrapper<C>, Wrapper<Lhs>, Wrapper<Rhs>> for CmpDebugWrapper<C>
+{
+    type Error = CmpDebugWrapper<C::Error>;
+}
+
+impl<
+        Lhs: ?Sized + core::ops::Deref,
+        Rhs: ?Sized + core::ops::Deref,
+        C,
+        E: CmpDisplay<C, Lhs::Target, Rhs::Target>,
+    > CmpDisplay<CmpDebugWrapper<C>, Wrapper<Lhs>, Wrapper<Rhs>> for CmpDebugWrapper<E>
+{
+    fn fmt(
+        &self,
+        cmp: &CmpDebugWrapper<C>,
+        lhs: &Wrapper<Lhs>,
+        lhs_source: &str,
+        lhs_debug: &dyn fmt::Debug,
+        rhs: &Wrapper<Rhs>,
+        rhs_source: &str,
+        rhs_debug: &dyn fmt::Debug,
+        f: &mut fmt::Formatter,
+    ) -> fmt::Result {
+        self.0.fmt(
+            &cmp.0, &*lhs.0, lhs_source, lhs_debug, &*rhs.0, rhs_source, rhs_debug, f,
+        )
     }
 }
 
-impl<Lhs: ?Sized, Rhs: ?Sized, C: Cmp<Lhs, Rhs>> Cmp<DebugWrapper<Lhs>, DebugWrapper<Rhs>>
-    for CmpDebugWrapper<C>
+impl<
+        Lhs: ?Sized + core::ops::Deref,
+        Rhs: ?Sized + core::ops::Deref,
+        C: Cmp<Lhs::Target, Rhs::Target>,
+    > Cmp<Wrapper<Lhs>, Wrapper<Rhs>> for CmpDebugWrapper<C>
 {
     #[inline(always)]
-    fn test(&self, lhs: &DebugWrapper<Lhs>, rhs: &DebugWrapper<Rhs>) -> bool {
-        self.0.test(&lhs.0, &rhs.0)
+    fn test(&self, lhs: &Wrapper<Lhs>, rhs: &Wrapper<Rhs>) -> Result<(), Self::Error> {
+        self.0.test(&*lhs.0, &*rhs.0).map_err(CmpDebugWrapper)
     }
 }
-impl<Lhs: ?Sized, Rhs: ?Sized, C: Cmp<Lhs, Rhs>> Cmp<NoDebugWrapper<Lhs>, DebugWrapper<Rhs>>
-    for CmpDebugWrapper<C>
-{
-    #[inline(always)]
-    fn test(&self, lhs: &NoDebugWrapper<Lhs>, rhs: &DebugWrapper<Rhs>) -> bool {
-        self.0.test(&lhs.0, &rhs.0)
+
+impl<T: ?Sized> core::ops::Deref for DebugWrapper<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
-impl<Lhs: ?Sized, Rhs: ?Sized, C: Cmp<Lhs, Rhs>> Cmp<DebugWrapper<Lhs>, NoDebugWrapper<Rhs>>
-    for CmpDebugWrapper<C>
-{
-    #[inline(always)]
-    fn test(&self, lhs: &DebugWrapper<Lhs>, rhs: &NoDebugWrapper<Rhs>) -> bool {
-        self.0.test(&lhs.0, &rhs.0)
-    }
-}
-impl<Lhs: ?Sized, Rhs: ?Sized, C: Cmp<Lhs, Rhs>> Cmp<NoDebugWrapper<Lhs>, NoDebugWrapper<Rhs>>
-    for CmpDebugWrapper<C>
-{
-    #[inline(always)]
-    fn test(&self, lhs: &NoDebugWrapper<Lhs>, rhs: &NoDebugWrapper<Rhs>) -> bool {
-        self.0.test(&lhs.0, &rhs.0)
+
+impl<T: ?Sized> core::ops::Deref for NoDebugWrapper<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

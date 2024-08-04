@@ -24,75 +24,66 @@ pub fn test() {
     let y = 2;
     let z = true;
 
+    assert!(true == false);
     assert!(all(true == false, x < y, any(!z, z)));
     assert!(all(true == false, x + 1 < y, any(!z, z)));
 }
 
 #[test]
 #[should_panic]
-pub fn test_asm() {
-    test_asm_1_med(2, 4);
-    test_asm_2_med(3, 5, 6, 7);
-    test_std_asm_1_med(2, 4);
-    test_std_asm_2_med(3, 5, 6, 7);
-    test_assert2_asm_1_med(2, 4);
-    test_assert2_asm_2_med(3, 5, 6, 7);
-}
-
-#[test]
-#[should_panic]
 pub fn test_different_types() {
-    assert!(*[0, 1, 2].as_slice() == [0, 1]);
+    assert!(*[0, 1, 2usize].as_slice() == [0, 1usize]);
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct ApproxEq {
     symbol: &'static str,
     tol: f64,
 }
 
-impl<Lhs, Rhs> equator::Cmp<&Lhs, &Rhs> for ApproxEq
-where
-    ApproxEq: equator::Cmp<Lhs, Rhs>,
-{
-    fn test(&self, lhs: &&Lhs, rhs: &&Rhs) -> bool {
-        self.test(*lhs, *rhs)
-    }
+#[derive(Copy, Clone, Debug)]
+enum ApproxEqError {
+    Absolute { distance: f64 },
+}
+
+impl equator::CmpError<ApproxEq, f64, f64> for ApproxEq {
+    type Error = ApproxEqError;
 }
 impl equator::Cmp<f64, f64> for ApproxEq {
-    fn test(&self, lhs: &f64, rhs: &f64) -> bool {
-        (lhs - rhs).abs() < self.tol
+    fn test(&self, lhs: &f64, rhs: &f64) -> Result<(), Self::Error> {
+        let distance = (lhs - rhs).abs();
+        let result = if distance <= self.tol {
+            Ok(())
+        } else {
+            Err(ApproxEqError::Absolute { distance })
+        };
+
+        result
     }
 }
-impl equator::DisplayCmp for ApproxEq {
-    fn fmt(&self, lhs: &str, rhs: &str, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { symbol, tol } = *self;
-        write!(f, "{lhs} {symbol} {rhs}, with absolute tolerance {tol:.1e}")
+impl equator::CmpDisplay<ApproxEq, f64, f64> for ApproxEqError {
+    fn fmt(
+        &self,
+        cmp: &ApproxEq,
+        lhs: &f64,
+        lhs_source: &str,
+        _: &dyn core::fmt::Debug,
+        rhs: &f64,
+        rhs_source: &str,
+        _: &dyn core::fmt::Debug,
+        f: &mut core::fmt::Formatter,
+    ) -> core::fmt::Result {
+        let ApproxEq { symbol, tol } = *cmp;
+        let ApproxEqError::Absolute { distance } = self;
+
+        writeln!(
+                f,
+                "Assertion failed: {lhs_source} {symbol} {rhs_source}, with absolute tolerance {tol:.1e}"
+            )?;
+        writeln!(f, "- {lhs_source} = {lhs:#?}")?;
+        writeln!(f, "- {rhs_source} = {rhs:#?}")?;
+        write!(f, "- distance = {distance:#?}")
     }
-}
-
-#[test]
-pub fn test_custom() {
-    let approx_eq = ApproxEq {
-        tol: 0.01,
-        symbol: "~",
-    };
-
-    assert!(0.1 :approx_eq: 0.10001);
-    assert!(&0.1 :approx_eq: &0.10001);
-    assert!(0.1 ~ 0.10001);
-}
-
-#[test]
-#[should_panic]
-pub fn test_custom_fail() {
-    let approx_eq = ApproxEq {
-        tol: 0.01,
-        symbol: "~",
-    };
-
-    let x = 0.1;
-    assert!(x ~ 0.2);
 }
 
 #[test]
@@ -177,4 +168,28 @@ pub fn test_big_fail() {
 pub fn test_big() {
     let x = [core::ptr::null::<()>(); 2];
     assert!(x == x);
+}
+
+#[test]
+#[should_panic]
+pub fn test_custom_fail() {
+    let approx_eq = ApproxEq {
+        tol: 0.01,
+        symbol: "~",
+    };
+
+    let x = 0.1;
+    assert!(all(x ~ 0.2, x ~ 0.1, x ~ 0.3));
+}
+
+#[test]
+pub fn test_custom() {
+    let approx_eq = ApproxEq {
+        tol: 0.01,
+        symbol: "~",
+    };
+
+    assert!(0.1 :approx_eq: 0.10001);
+    assert!(&0.1 :approx_eq: &0.10001);
+    assert!(0.1 ~ 0.10001);
 }

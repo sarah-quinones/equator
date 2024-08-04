@@ -159,6 +159,8 @@ struct Code {
     assert_expr: TokenStream,
     source: TokenStream,
     source_type: TokenStream,
+    decomposed: TokenStream,
+    prologue: TokenStream,
     debug_lhs: TokenStream,
     debug_rhs: TokenStream,
     debug_cmp: TokenStream,
@@ -174,6 +176,8 @@ impl AssertExpr {
                 assert_expr: quote! { (#placeholder_id).0.0.0 },
                 source: quote! { ::core::stringify!(#expr) },
                 source_type: quote! { &'static ::core::primitive::str },
+                decomposed: quote! { bool },
+                prologue: quote! {},
                 debug_lhs: quote! { () },
                 debug_rhs: quote! { () },
                 debug_cmp: quote! { #placeholder_id.0.0.0 },
@@ -223,6 +227,19 @@ impl AssertExpr {
                             &'static ::core::primitive::str,
                         >
                     },
+                    decomposed: if *custom {
+                        quote! { #crate_name::CustomCmpExpr<_> }
+                    } else {
+                        quote! { #crate_name::CmpExpr }
+                    },
+                    prologue: if *custom {
+                        quote! {}
+                    } else {
+                        quote! {
+                            let #left_placeholder_id = #crate_name::Single::from_ref(#left_placeholder_id);
+                            let #right_placeholder_id = #crate_name::Single::from_ref(#right_placeholder_id);
+                        }
+                    },
                     debug_lhs: quote! { (#left_placeholder_id).get_ptr() },
                     debug_rhs: quote! { (#right_placeholder_id).get_ptr() },
                     debug_cmp: if *custom {
@@ -238,6 +255,8 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     source_type: left_source_type,
+                    decomposed: left_decomposed,
+                    prologue: left_prologue,
                     debug_lhs: left_debug_lhs,
                     debug_rhs: left_debug_rhs,
                     debug_cmp: left_debug_cmp,
@@ -246,6 +265,8 @@ impl AssertExpr {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     source_type: right_source_type,
+                    decomposed: right_decomposed,
+                    prologue: right_prologue,
                     debug_lhs: right_debug_lhs,
                     debug_rhs: right_debug_rhs,
                     debug_cmp: right_debug_cmp,
@@ -265,6 +286,12 @@ impl AssertExpr {
                     },
                     source_type: quote! {
                         #crate_name::expr::AndExpr<#left_source_type, #right_source_type>
+                    },
+                    decomposed: quote! {
+                        #crate_name::AndExpr<#left_decomposed, #right_decomposed>
+                    },
+                    prologue: quote! {
+                        #left_prologue #right_prologue
                     },
                     debug_lhs: quote! {
                         #crate_name::expr::AndExpr {
@@ -292,6 +319,8 @@ impl AssertExpr {
                     assert_expr: left_assert_expr,
                     source: left_source,
                     source_type: left_source_type,
+                    decomposed: left_decomposed,
+                    prologue: left_prologue,
                     debug_lhs: left_debug_lhs,
                     debug_rhs: left_debug_rhs,
                     debug_cmp: left_debug_cmp,
@@ -300,6 +329,8 @@ impl AssertExpr {
                     assert_expr: right_assert_expr,
                     source: right_source,
                     source_type: right_source_type,
+                    decomposed: right_decomposed,
+                    prologue: right_prologue,
                     debug_lhs: right_debug_lhs,
                     debug_rhs: right_debug_rhs,
                     debug_cmp: right_debug_cmp,
@@ -320,20 +351,26 @@ impl AssertExpr {
                     source_type: quote! {
                         #crate_name::expr::OrExpr<#left_source_type, #right_source_type>
                     },
+                    decomposed: quote! {
+                        #crate_name::OrExpr<#left_decomposed, #right_decomposed>
+                    },
+                    prologue: quote! {
+                        #left_prologue #right_prologue
+                    },
                     debug_lhs: quote! {
-                        #crate_name::expr::AndExpr {
+                        #crate_name::expr::OrExpr {
                             lhs: (#left_debug_lhs),
                             rhs: (#right_debug_lhs),
                         }
                     },
                     debug_rhs: quote! {
-                        #crate_name::expr::AndExpr {
+                        #crate_name::expr::OrExpr {
                             lhs: (#left_debug_rhs),
                             rhs: (#right_debug_rhs),
                         }
                     },
                     debug_cmp: quote! {
-                        #crate_name::expr::AndExpr {
+                        #crate_name::expr::OrExpr {
                             lhs: (#left_debug_cmp),
                             rhs: (#right_debug_cmp),
                         }
@@ -748,6 +785,8 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
         assert_expr,
         source,
         source_type,
+        decomposed,
+        prologue,
         debug_cmp,
         debug_lhs,
         debug_rhs,
@@ -763,13 +802,14 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
             match (#(&(#atomics),)* #(&(#cmp_atomics),)*) {
                 (#(#placeholders,)* #(#cmp_placeholders,)*) => {
                     if false {
-                        #(let _: bool = #diagnostics;)*
+                        #(let _ = #diagnostics;)*
                     }
                     use #crate_name::spec::debug::TryDebugWrap;
                     use #crate_name::spec::sized::TrySizedWrap;
                     use #crate_name::spec::by_val::TryByValWrap;
                     use #crate_name::traits::Expr;
 
+                    #prologue
                     #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_debug().do_wrap(#placeholders);)*
                     #(let #placeholders = (&&#crate_name::spec::Wrapper(#placeholders)).wrap_sized().do_wrap(#placeholders);)*
                     #(let #placeholders = (#placeholders).get();)*
@@ -784,7 +824,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     };
 
                     if !(&&&__assert_expr).eval_expr() {
-                        struct Source<'a, V>(&'a V);
+                        struct Source<'a, V>(pub &'a V);
                         impl<V: #crate_name::traits::DynInfoType> #crate_name::traits::DynInfoType for &Source<'_, V> {
                             type VTable = #crate_name::structures::WithSource<#source_type, &'static V::VTable>;
                             const NULL_VTABLE: &'static Self::VTable = &#crate_name::structures::WithSource {
@@ -812,7 +852,8 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             const VTABLE: &'static Self::VTable = <Self as #crate_name::traits::DynInfoType>::NULL_VTABLE;
                         }
 
-                        #crate_name::panic_failed_assert::<_, <#source_type as #crate_name::decompose::Decompose>::Decomposed>(
+                        #crate_name::panic_failed_assert::<_, #decomposed>(
+                            (&&&__assert_expr).__marker(),
                             #debug_lhs,
                             #debug_rhs,
                             #debug_cmp,
