@@ -172,7 +172,7 @@ impl AssertExpr {
                 diagnostic_expr: expr,
             }) => Code {
                 assert_expr: quote! { (#placeholder_id).0.0.0 },
-                source: quote! { ::core::stringify!(#expr) },
+                source: quote! { #expr },
                 source_type: quote! { &'static ::core::primitive::str },
                 debug_lhs: quote! { () },
                 debug_rhs: quote! { () },
@@ -818,6 +818,7 @@ pub fn assert(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             const VTABLE: &'static Self::VTable = <Self as #crate_name::traits::DynInfoType>::NULL_VTABLE;
                         }
 
+                        #[allow(clippy::useless_transmute)]
                         #crate_name::panic_failed_assert(
                             (&&&__assert_expr).__marker(),
                             unsafe { ::core::mem::transmute(#debug_lhs) },
